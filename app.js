@@ -2533,6 +2533,9 @@ function renderYenCrossCommand(command) {
   const price = (value) => Number(value || 0).toLocaleString("ja-JP", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   const hitRate = pair.hitRate == null ? "--" : `${Math.round(Number(pair.hitRate) * 100)}%`;
   const direction = tone === "up" ? "円安・ドル高" : tone === "down" ? "円高・ドル安" : "中立";
+  const usdLedger = command.attributionLedger || {};
+  const usdGuard = command.attributionQualityGuard || {};
+  const usdReleaseRows = usdLedger.segmentGuardValidation?.rows || [];
   yenCrossCommandEl.innerHTML = `
     <div class="yen-cross-primary">
       <div><span>稼働ペア</span><strong>${pair.label}</strong><small>${direction} / 信頼 ${Math.round(Number(pair.confidence || 0) * 100)}%</small></div>
@@ -2570,6 +2573,10 @@ function renderYenCrossCommand(command) {
         <article><span>コスト後改善</span><strong>${command.featureChallenger.validation?.improvementPct == null ? "--" : `${Number(command.featureChallenger.validation.improvementPct) >= 0 ? "+" : ""}${Number(command.featureChallenger.validation.improvementPct).toFixed(3)}%`}</strong><small>主特徴 ${command.featureChallenger.importance?.[0]?.key || "蓄積中"}</small></article>
       </div><p>${command.featureChallenger.safeguard}</p>
     </div>` : ""}
+    <div class="segment-release-board ${usdGuard.blocked ? "blocked" : usdGuard.segmentReleased ? "released" : "learning"}">
+      <header><div><span>USD/JPY 根拠別・停止解除検証</span><strong>${usdGuard.label || usdLedger.status || "独立標本を蓄積中"}</strong></div><b>${usdGuard.segmentReleased ? "正式解除" : usdGuard.blocked ? "停止継続" : "監視中"}</b></header>
+      <div>${usdReleaseRows.slice(0, 4).map((row) => `<article><span>${row.key}</span><strong>${row.releaseConfirmed ? "解除確認" : row.releaseCandidate ? "前向き再検証" : "停止効果監視"}</strong><small>停止 ${row.blockedSamples}件 / 解除後 ${row.trialSamples}/15件</small><small>解除後一致 ${row.trialHitRate == null ? "--" : `${Math.round(row.trialHitRate * 100)}%`} / 期待値 ${row.trialExpectancyPct == null ? "--" : `${Number(row.trialExpectancyPct) >= 0 ? "+" : ""}${Number(row.trialExpectancyPct).toFixed(4)}%`}</small></article>`).join("") || `<article><span>USD/JPY複合条件</span><strong>標本蓄積中</strong><small>30件到達後に停止効果を検証</small></article>`}</div>
+    </div>
     <div class="yen-cross-policy">
       <div><span>当局・介入監視</span><strong>${command.policy?.interventionLabel || "通常監視"}</strong><small>${command.policy?.method || "公開情報を監視中"}</small></div>
       <div><span>最新根拠</span><strong>${command.policy?.evidence?.length || 0}件</strong><small>${command.policy?.evidence?.[0]?.title || "関連発言を収集中"}</small></div>
@@ -2593,6 +2600,7 @@ function renderValidationControl(leakage, gate, ledger) {
   const interval = (value, scale = 100, suffix = "%") => value?.low == null
     ? "95%区間は標本不足"
     : `95%区間 ${(Number(value.low) * scale).toFixed(1)}〜${(Number(value.high) * scale).toFixed(1)}${suffix}`;
+  const releaseRows = ledger.segmentGuardValidation?.rows || [];
   validationControlEl.innerHTML = `
     <div class="forward-validation-milestone">
       <div class="forward-validation-title"><span>前向き検証マイルストーン</span><strong>${gate.decisionReadiness || "標本を蓄積中"}</strong><small>総合進捗 ${Math.round(Number(gate.overallProgress || 0) * 100)}% / 条件を満たしても利益や将来成績は保証されません</small></div>
@@ -2628,6 +2636,10 @@ function renderValidationControl(leakage, gate, ledger) {
     <div class="attribution-combinations">
       <span>組み合わせ上位</span>
       ${(ledger.combinations || []).slice(0, 4).map((row) => `<b>${row.label} ${row.samples}件・${percent(row.hitRate)}</b>`).join("") || "<b>照合データを蓄積中</b>"}
+    </div>
+    <div class="segment-release-board ${ledger.segmentGuardValidation?.status || "learning"}">
+      <header><div><span>EUR/USD 停止解除の前向き審査</span><strong>${ledger.segmentGuardValidation?.status === "release-confirmed" ? "独立検証で正式解除を確認" : ledger.segmentGuardValidation?.status === "forward-validating" ? "解除候補を前向き再検証中" : "停止効果を反実仮想検証中"}</strong></div><b>${ledger.segmentGuardValidation?.blockedPredictions || 0}件を検証</b></header>
+      <div>${releaseRows.slice(0, 6).map((row) => `<article class="${row.releaseConfirmed ? "released" : row.releaseCandidate ? "candidate" : "monitoring"}"><span>${row.key}</span><strong>${row.releaseConfirmed ? "正式解除" : row.releaseCandidate ? "解除候補" : "監視中"}</strong><small>停止 ${row.blockedSamples}件 / 候補後 ${row.trialSamples}/15件</small><small>方向一致 ${row.trialHitRate == null ? "--" : percent(row.trialHitRate)} / コスト後 ${row.trialExpectancyPct == null ? "--" : signed(row.trialExpectancyPct)}</small><small>${interval(row.trialHitRateInterval95)} / 期待値 ${row.trialExpectancyInterval95?.low == null ? "95%区間は標本不足" : `${signed(row.trialExpectancyInterval95.low)}〜${signed(row.trialExpectancyInterval95.high)}`}</small></article>`).join("") || `<article><span>複合条件</span><strong>標本蓄積中</strong><small>30件到達後に停止効果を検証します</small></article>`}</div>
     </div>
     <p class="validation-method">${leakage.method}。${gate.method}。${ledger.method}。</p>
   `;

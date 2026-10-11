@@ -386,6 +386,7 @@ let eurusdPivotResizeObserver = null;
 let selectedPivotTimeframe = localStorage.getItem("eurusdPivotTimeframe") || "h1";
 let selectedEurusdChartMode = localStorage.getItem("eurusdChartMode") === "spread" ? "spread" : "price";
 let latestEuroSovereignSpread = null;
+let euroSovereignSpreadFallbackRequested = false;
 let selectedUsdjpyPivotTimeframe = localStorage.getItem("usdjpyPivotTimeframe") || "h1";
 const autoLineEnabled = {
   eurusd: localStorage.getItem("eurusdAutoLine") !== "off",
@@ -816,6 +817,13 @@ function renderEuroSovereignSpread(data) {
   if (!rows.length) {
     euroSovereignSpreadStatusEl.textContent = "公式データ取得待ち";
     if (euroSovereignSpreadValuesEl) euroSovereignSpreadValuesEl.innerHTML = "";
+    if (!euroSovereignSpreadFallbackRequested) {
+      euroSovereignSpreadFallbackRequested = true;
+      fetch("./euro-sovereign-spread.json", { cache: "no-cache" })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+        .then((fallback) => renderEuroSovereignSpread(fallback))
+        .catch(() => {});
+    }
     return;
   }
   const last = rows.at(-1);
@@ -824,6 +832,7 @@ function renderEuroSovereignSpread(data) {
     <div><span>フランス10年</span><strong>${last.france.toFixed(2)}%</strong></div>
     <div><span>ドイツ10年</span><strong>${last.germany.toFixed(2)}%</strong></div>
     <div><span>信用リスク差</span><strong class="${data.direction === "拡大" ? "down" : "up"}">${last.spreadBp.toFixed(1)}bp</strong></div>`;
+  if (selectedEurusdChartMode === "spread") renderEurusdSovereignSpreadChart();
 }
 
 function formatDateTime(value) {

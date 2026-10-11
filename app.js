@@ -104,6 +104,8 @@ const eurusdPivotLevelsEl = document.getElementById("eurusd-pivot-levels");
 const eurusdPivotStatusEl = document.getElementById("eurusd-pivot-status");
 const eurusdPivotTradeEl = document.getElementById("eurusd-pivot-trade");
 const eurusdPivotButtons = [...document.querySelectorAll("[data-pivot-timeframe]")];
+const euroSovereignSpreadFrameEl = document.getElementById("euro-sovereign-spread-frame");
+const euroSovereignSpreadStatusEl = document.getElementById("euro-sovereign-spread-status");
 const usdjpyPivotChartEl = document.getElementById("usdjpy-pivot-chart");
 const usdjpyPivotLevelsEl = document.getElementById("usdjpy-pivot-levels");
 const usdjpyPivotStatusEl = document.getElementById("usdjpy-pivot-status");
@@ -738,6 +740,31 @@ function formatTime(value) {
   const time = Date.parse(value || "");
   if (!Number.isFinite(time)) return "--:--";
   return new Date(time).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+}
+
+function syncEuroSovereignSpreadChart(timeframe = selectedPivotTimeframe) {
+  if (!euroSovereignSpreadFrameEl) return;
+  const intervals = { m15: "15", h1: "60", h4: "240", d1: "D" };
+  const labels = { m15: "15分足", h1: "1時間足", h4: "4時間足", d1: "日足" };
+  const interval = intervals[timeframe] || "60";
+  const url = new URL("https://s.tradingview.com/widgetembed/");
+  url.search = new URLSearchParams({
+    frameElementId: "euro-sovereign-spread-frame",
+    symbol: "TVC:FR10Y-TVC:DE10Y",
+    interval,
+    hidesidetoolbar: "1",
+    symboledit: "0",
+    saveimage: "0",
+    toolbarbg: "071310",
+    theme: "dark",
+    style: "2",
+    timezone: "Asia/Tokyo",
+    withdateranges: "1",
+    hideideas: "1",
+    locale: "ja"
+  }).toString();
+  if (euroSovereignSpreadFrameEl.src !== url.href) euroSovereignSpreadFrameEl.src = url.href;
+  if (euroSovereignSpreadStatusEl) euroSovereignSpreadStatusEl.textContent = `${labels[timeframe] || labels.h1}・表示値×100＝bp`;
 }
 
 function formatDateTime(value) {
@@ -4002,7 +4029,9 @@ eurusdPivotButtons.forEach((button) => button.addEventListener("click", () => {
   selectedPivotTimeframe = button.dataset.pivotTimeframe;
   localStorage.setItem("eurusdPivotTimeframe", selectedPivotTimeframe);
   renderEurusdPivotChart(latestEurusdPivotChart, selectedPivotTimeframe);
+  syncEuroSovereignSpreadChart(selectedPivotTimeframe);
 }));
+syncEuroSovereignSpreadChart(selectedPivotTimeframe);
 usdjpyPivotButtons.forEach((button) => button.addEventListener("click", () => {
   selectedUsdjpyPivotTimeframe = button.dataset.usdjpyPivotTimeframe;
   localStorage.setItem("usdjpyPivotTimeframe", selectedUsdjpyPivotTimeframe);

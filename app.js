@@ -104,8 +104,9 @@ const eurusdPivotLevelsEl = document.getElementById("eurusd-pivot-levels");
 const eurusdPivotStatusEl = document.getElementById("eurusd-pivot-status");
 const eurusdPivotTradeEl = document.getElementById("eurusd-pivot-trade");
 const eurusdPivotButtons = [...document.querySelectorAll("[data-pivot-timeframe]")];
-const euroSovereignSpreadFrameEl = document.getElementById("euro-sovereign-spread-frame");
+const euroSovereignSpreadChartEl = document.getElementById("euro-sovereign-spread-chart");
 const euroSovereignSpreadStatusEl = document.getElementById("euro-sovereign-spread-status");
+const euroSovereignSpreadValuesEl = document.getElementById("euro-sovereign-spread-values");
 const usdjpyPivotChartEl = document.getElementById("usdjpy-pivot-chart");
 const usdjpyPivotLevelsEl = document.getElementById("usdjpy-pivot-levels");
 const usdjpyPivotStatusEl = document.getElementById("usdjpy-pivot-status");
@@ -742,29 +743,39 @@ function formatTime(value) {
   return new Date(time).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 }
 
-function syncEuroSovereignSpreadChart(timeframe = selectedPivotTimeframe) {
-  if (!euroSovereignSpreadFrameEl) return;
-  const intervals = { m15: "15", h1: "60", h4: "240", d1: "D" };
-  const labels = { m15: "15分足", h1: "1時間足", h4: "4時間足", d1: "日足" };
-  const interval = intervals[timeframe] || "60";
-  const url = new URL("https://s.tradingview.com/widgetembed/");
-  url.search = new URLSearchParams({
-    frameElementId: "euro-sovereign-spread-frame",
-    symbol: "TVC:FR10Y-TVC:DE10Y",
-    interval,
-    hidesidetoolbar: "1",
-    symboledit: "0",
-    saveimage: "0",
-    toolbarbg: "071310",
-    theme: "dark",
-    style: "2",
-    timezone: "Asia/Tokyo",
-    withdateranges: "1",
-    hideideas: "1",
-    locale: "ja"
-  }).toString();
-  if (euroSovereignSpreadFrameEl.src !== url.href) euroSovereignSpreadFrameEl.src = url.href;
-  if (euroSovereignSpreadStatusEl) euroSovereignSpreadStatusEl.textContent = `${labels[timeframe] || labels.h1}・表示値×100＝bp`;
+function renderEuroSovereignSpread(data) {
+  if (!euroSovereignSpreadChartEl || !euroSovereignSpreadStatusEl) return;
+  const rows = (data?.series || []).slice(-36);
+  if (rows.length < 2) {
+    euroSovereignSpreadChartEl.innerHTML = '<div class="pivot-chart-empty">ECB公式の仏独10年金利差を再取得しています。</div>';
+    euroSovereignSpreadStatusEl.textContent = "公式データ取得待ち";
+    if (euroSovereignSpreadValuesEl) euroSovereignSpreadValuesEl.innerHTML = "";
+    return;
+  }
+  const width = 1000;
+  const height = 280;
+  const margin = { left: 54, right: 28, top: 22, bottom: 36 };
+  const values = rows.map((row) => Number(row.spreadBp));
+  const min = Math.floor(Math.min(...values) / 10) * 10 - 5;
+  const max = Math.ceil(Math.max(...values) / 10) * 10 + 5;
+  const range = Math.max(1, max - min);
+  const x = (index) => margin.left + index * ((width - margin.left - margin.right) / Math.max(1, rows.length - 1));
+  const y = (value) => margin.top + (max - value) / range * (height - margin.top - margin.bottom);
+  const path = rows.map((row, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(Number(row.spreadBp)).toFixed(1)}`).join(" ");
+  const area = `${path} L${x(rows.length - 1).toFixed(1)},${height - margin.bottom} L${x(0).toFixed(1)},${height - margin.bottom} Z`;
+  const grids = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+    const value = max - range * ratio;
+    const py = y(value);
+    return `<line x1="${margin.left}" y1="${py}" x2="${width - margin.right}" y2="${py}" class="spread-grid"/><text x="${margin.left - 8}" y="${py + 4}" text-anchor="end" class="spread-axis">${value.toFixed(0)}bp</text>`;
+  }).join("");
+  const labels = [0, Math.floor((rows.length - 1) / 2), rows.length - 1].map((index) => `<text x="${x(index)}" y="${height - 12}" text-anchor="${index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"}" class="spread-axis">${rows[index].date}</text>`).join("");
+  const last = rows.at(-1);
+  euroSovereignSpreadChartEl.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="仏独10年国債金利差 ${last.spreadBp}ベーシスポイント">${grids}<path d="${area}" class="spread-area"/><path d="${path}" class="spread-line"/>${rows.map((row, index) => `<circle cx="${x(index)}" cy="${y(Number(row.spreadBp))}" r="3" class="spread-point"><title>${row.date} 仏 ${row.france}% / 独 ${row.germany}% / 差 ${row.spreadBp}bp</title></circle>`).join("")}${labels}</svg>`;
+  euroSovereignSpreadStatusEl.textContent = `${data.updatedAt} / ${last.spreadBp.toFixed(1)}bp / 前月比 ${Number(data.changeBp) >= 0 ? "+" : ""}${Number(data.changeBp).toFixed(1)}bp ${data.direction}`;
+  if (euroSovereignSpreadValuesEl) euroSovereignSpreadValuesEl.innerHTML = `
+    <div><span>フランス10年</span><strong>${last.france.toFixed(2)}%</strong></div>
+    <div><span>ドイツ10年</span><strong>${last.germany.toFixed(2)}%</strong></div>
+    <div><span>信用リスク差</span><strong class="${data.direction === "拡大" ? "down" : "up"}">${last.spreadBp.toFixed(1)}bp</strong></div>`;
 }
 
 function formatDateTime(value) {
@@ -3933,6 +3944,7 @@ async function loadSnapshot(forceFull = false) {
     renderEurusdCommand(snapshot.eurusdCommand, (snapshot.markets || []).find((market) => market.id === "eurusd"));
     renderYenCrossCommand(snapshot.yenCrossCommand);
     renderEurusdPivotChart(snapshot.eurusdPivotChart, selectedPivotTimeframe);
+    renderEuroSovereignSpread(snapshot.euroSovereignSpread);
     renderUsdjpyPivotChart(snapshot.usdjpyPivotChart, selectedUsdjpyPivotTimeframe);
     renderPivotTradeOverlays(snapshot.paperTrading, snapshot.markets);
     renderSwingCompass(snapshot.swingTradeCompass);
@@ -4029,9 +4041,7 @@ eurusdPivotButtons.forEach((button) => button.addEventListener("click", () => {
   selectedPivotTimeframe = button.dataset.pivotTimeframe;
   localStorage.setItem("eurusdPivotTimeframe", selectedPivotTimeframe);
   renderEurusdPivotChart(latestEurusdPivotChart, selectedPivotTimeframe);
-  syncEuroSovereignSpreadChart(selectedPivotTimeframe);
 }));
-syncEuroSovereignSpreadChart(selectedPivotTimeframe);
 usdjpyPivotButtons.forEach((button) => button.addEventListener("click", () => {
   selectedUsdjpyPivotTimeframe = button.dataset.usdjpyPivotTimeframe;
   localStorage.setItem("usdjpyPivotTimeframe", selectedUsdjpyPivotTimeframe);

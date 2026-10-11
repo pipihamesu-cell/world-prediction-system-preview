@@ -391,23 +391,16 @@
                 <span>仏独10年国債 金利差</span>
                 <small>フランス10年 − ドイツ10年 / TradingView</small>
               </div>
-              <strong id="euro-sovereign-spread-status">1時間足・ベーシスポイント換算</strong>
+              <strong id="euro-sovereign-spread-status">ECB公式データを取得中</strong>
             </div>
-            <div class="euro-sovereign-spread-chart">
-              <iframe
-                id="euro-sovereign-spread-frame"
-                title="TradingView フランス10年国債とドイツ10年国債の金利差"
-                src="https://s.tradingview.com/widgetembed/?frameElementId=euro-sovereign-spread-frame&amp;symbol=TVC%3AFR10Y-TVC%3ADE10Y&amp;interval=60&amp;hidesidetoolbar=1&amp;symboledit=0&amp;saveimage=0&amp;toolbarbg=071310&amp;theme=dark&amp;style=2&amp;timezone=Asia%2FTokyo&amp;withdateranges=1&amp;hideideas=1&amp;locale=ja"
-                loading="lazy"
-                referrerpolicy="origin"
-                allowtransparency="true"
-              ></iframe>
-            </div>
+            <div id="euro-sovereign-spread-chart" class="euro-sovereign-spread-chart" aria-label="仏独10年国債金利差チャート"></div>
+            <div id="euro-sovereign-spread-values" class="euro-sovereign-spread-values"></div>
             <div class="euro-sovereign-spread-guide">
               <div class="risk"><span>スプレッド拡大</span><strong>フランス信用・財政リスク上昇</strong><small>通常はEUR/USDの下押し要因</small></div>
               <div class="relief"><span>スプレッド縮小</span><strong>ユーロ圏リスク後退</strong><small>通常はEUR/USDの支援要因</small></div>
               <div><span>注意</span><strong>単独では売買しない</strong><small>ECB・米独金利差・ニュースと照合</small></div>
             </div>
+            <a class="euro-sovereign-tradingview-link" href="https://www.tradingview.com/chart/?symbol=TVC%3AFR10Y-TVC%3ADE10Y" target="_blank" rel="noreferrer">TradingViewでリアルタイム計算式チャートを開く</a>
           </div>
           <div class="eurusd-pivot-note">
             <span>一つ前の確定足で算出</span>

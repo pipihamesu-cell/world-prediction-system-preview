@@ -685,7 +685,7 @@ function renderEurusdSovereignSpreadChart() {
   const latest = latestEuroSovereignSpread?.series?.at(-1);
   const officialValue = latest ? ` / ECB月次 ${Number(latest.spreadBp).toFixed(1)}bp` : "";
   eurusdPivotStatusEl.textContent = `仏独10年金利差 / 日足 / フランス10年 − ドイツ10年${officialValue}`;
-  eurusdPivotChartEl.innerHTML = `<iframe class="eurusd-spread-iframe" title="TradingView 仏独10年国債金利差 日足" src="https://s.tradingview.com/widgetembed/?frameElementId=eurusd-spread-inline&symbol=TVC%3AFR10Y-TVC%3ADE10Y&interval=D&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=071310&theme=dark&style=2&timezone=Asia%2FTokyo&withdateranges=1&hideideas=1&locale=ja" loading="eager" referrerpolicy="origin" allowtransparency="true"></iframe>`;
+  eurusdPivotChartEl.innerHTML = '<iframe class="eurusd-spread-iframe" title="TradingView 仏独10年国債金利差 日足" src="./euro-spread-chart.html" loading="eager" referrerpolicy="origin" allowtransparency="true"></iframe>';
 }
 
 function initGlobe() {

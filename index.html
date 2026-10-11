@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08110f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="forecast-newsflash" aria-label="EUR/USD現在予測速報">
+        <div class="forecast-newsflash-label">
+          <i></i>
+          <span>EUR/USD 予測速報</span>
+        </div>
+        <div class="forecast-newsflash-viewport">
+          <div id="forecast-newsflash-track" class="forecast-newsflash-track">
+            <div class="forecast-newsflash-group"><span>時間足予測を同期中です</span></div>
+          </div>
+        </div>
+      </section>
+      <a id="paper-position-bar" class="paper-position-bar waiting" href="#paper-trading-panel" aria-label="現在の仮想取引状況を確認">
+        <div class="paper-position-lead">
+          <span class="paper-position-live"><i></i> 公式仮想口座</span>
+          <strong id="paper-position-state">取引状況を同期中</strong>
+        </div>
+        <div id="paper-position-summary" class="paper-position-summary">
+          <span>現在のポジションを確認しています</span>
+        </div>
+        <div class="paper-position-jump">詳細を見る <b aria-hidden="true">›</b></div>
+      </a>
+      <div class="left-rail">
+      <section class="globe-section" aria-label="&#12527;&#12540;&#12523;&#12489;&#12514;&#12491;&#12479;&#12540;">
+        <div id="globe"></div>
+        <div id="map-2d" class="map-2d" aria-label="2D世界地図">
+          <div id="map-alert-markers" class="map-alert-markers" aria-label="地域別の特殊要因"></div>
+        </div>
+        <aside id="map-event-detail" class="map-event-detail" hidden aria-live="polite">
+          <button id="map-event-detail-close" type="button" aria-label="詳細を閉じる">&times;</button>
+          <span id="map-event-detail-level">世界監視</span>
+          <strong id="map-event-detail-title">異常なし</strong>
+          <p id="map-event-detail-body">世界の特殊要因を監視しています。</p>
+          <small id="map-event-detail-meta">監視中</small>
+        </aside>
+        <aside id="map-live-fx" class="map-live-fx" aria-label="リアルタイム為替レート">
+          <div class="map-live-fx-head"><span></span><strong>LIVE FX</strong><time id="map-live-fx-time">同期中</time></div>
+          <div id="map-live-fx-quotes" class="map-live-fx-quotes">
+            <div><span>EUR/USD</span><strong>-----</strong><small>取得中</small></div>
+            <div><span>USD/JPY</span><strong>-----</strong><small>取得中</small></div>
+          </div>
+        </aside>
+        <div class="terminal-bar">
+          <div class="terminal-brand"><i></i><strong>WORLD PREDICT</strong><span>FINANCIAL INTELLIGENCE</span></div>
+          <nav class="terminal-nav" aria-label="主要画面へ移動">
+            <a href="#finance-monitor-panel">世界市場</a>
+            <a href="#eurusd-command-panel">EUR/USD</a>
+            <a href="#important-info-panel">重要情報</a>
+            <a href="#ai-improvement-panel">AI学習</a>
+          </nav>
+          <div class="terminal-live"><span></span> LIVE</div>
+        </div>
+        <div id="market-tape" class="market-tape" aria-label="主要市場ライブ価格">
+          <span>市場データを同期中</span>
+        </div>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">GLOBAL MARKETS / AI FORECAST</p>
+            <h1>世界金融インテリジェンス</h1>
+          </div>
+          <div class="status">
+            <span id="feed-status" class="pulse"></span>
+            <span id="updated-at">&#25509;&#32154;&#20013;</span>
+          </div>
+        </header>
+
+        <div class="design-compare" aria-label="デザイン比較">
+          <span>表示</span>
+          <button type="button" data-design-mode="classic">旧版</button>
+          <button type="button" data-design-mode="command" class="active">刷新版</button>
+          <button id="detail-mode-toggle" type="button" aria-pressed="false" title="補助パネルを表示">詳細表示</button>
+        </div>
+
+        <aside class="briefing-panel" aria-label="AIブリーフィング">
+          <span>AIブリーフィング</span>
+          <strong id="briefing-headline">分析中</strong>
+          <p id="briefing-summary">市場、ニュース、災害、学習誤差を統合しています。</p>
+          <small id="briefing-action">次の判断材料を生成中です。</small>
+        </aside>
+
+        <nav class="globe-layers" aria-label="地球儀表示レイヤー">
+          <div class="map-mode" aria-label="地図表示方式">
+            <button type="button" data-globe-mode="3d" class="active" aria-pressed="true">3D地球儀</button>
+            <button type="button" data-globe-mode="2d" aria-pressed="false">2D地図</button>
+          </div>
+          <button type="button" data-globe-layer="events" class="active">災害</button>
+          <button type="button" data-globe-layer="centers" class="active">金融拠点</button>
+          <button type="button" data-globe-layer="flows" class="active">市場フロー</button>
+          <button type="button" data-globe-layer="alerts" class="active">警報</button>
+        </nav>
+
+        <aside class="flow-legend" aria-label="地球儀の線の説明">
+          <div class="flow-legend-head">
+            <span><i></i>動く線の意味</span>
+            <strong id="flow-count">分析中</strong>
+          </div>
+          <p>主要市場から別の市場へ波及する可能性を示します。粒子の進行方向が影響の向き、赤は強い連動、緑は通常の連動です。</p>
+          <div id="flow-explanation" class="flow-explanation">市場間の影響経路を計算しています。</div>
+        </aside>
+
+        <div class="risk-strip">
+          <span>&#28797;&#23475;&#12522;&#12473;&#12463;</span>
+          <strong id="risk-value">--</strong>
+          <div class="risk-meter"><i id="risk-meter"></i></div>
+        </div>
+      </section>
+
+      <section id="left-intelligence-stack" class="left-intelligence-stack" aria-label="リアルタイム運用情報">
+        <header class="left-intelligence-head">
+          <span>REALTIME OPERATIONS / EURUSD</span>
+          <strong>リアルタイム運用情報</strong>
+        </header>
+        <div id="left-intelligence-columns" class="left-intelligence-columns" aria-label="市場監視レーン">
+          <div data-intelligence-column="left"></div>
+          <div data-intelligence-column="right"></div>
+        </div>
+      </section>
+      </div>
+
+      <section class="dashboard" aria-label="&#24066;&#22580;&#12392;&#20104;&#28204;">
+        <div class="dashboard-head">
+          <div>
+            <p class="eyebrow">1&#20998;&#12372;&#12392;&#12398;&#36969;&#24540;&#22411;&#20104;&#28204;</p>
+            <h2>&#24066;&#22580;&#12471;&#12464;&#12490;&#12523;</h2>
+          </div>
+          <button id="refresh" type="button" title="&#20170;&#12377;&#12368;&#26356;&#26032;">&#20877;</button>
+        </div>
+
+        <nav id="mobile-section-tabs" class="mobile-section-tabs" aria-label="携帯版表示カテゴリ">
+          <button type="button" data-mobile-view="decision" aria-pressed="false">予測</button>
+          <button type="button" data-mobile-view="news" aria-pressed="false">ニュース</button>
+          <button type="button" data-mobile-view="learning" aria-pressed="false">検証・仮想</button>
+          <button type="button" data-mobile-view="operations" aria-pressed="false">運用</button>
+          <button type="button" data-mobile-view="all" class="active" aria-pressed="true">全機能</button>
+        </nav>
+
+        <nav class="mobile-quick-jump" aria-label="主要機能へ移動">
+          <span>QUICK</span>
+          <button type="button" data-mobile-target="eurusd-pivot-panel">ピボット</button>
+          <button type="button" data-mobile-target="eurusd-timeframes">時間足予測</button>
+          <button type="button" data-mobile-target="validation-control-panel">予測検証</button>
+          <button type="button" data-mobile-target="paper-trading-panel">公式口座</button>
+          <button type="button" data-mobile-target="shadow-paper-trading-panel">学習口座</button>
+        </nav>
+
+        <section id="finance-monitor-panel" class="finance-monitor-wrap calm" aria-label="世界市場パルス">
+          <div class="finance-monitor-head">
+            <span>世界市場パルス</span>
+            <strong id="finance-monitor-status">世界の取引時間を同期中</strong>
+          </div>
+          <div id="finance-monitor-overview" class="finance-monitor-overview"></div>
+        </section>
+
+        <section class="android-access-wrap" aria-label="Android公開アクセス">
+          <div class="android-access-head">
+            <span>Android公開アクセス</span>
+            <strong id="android-access-status">確認中</strong>
+          </div>
+          <div id="android-access" class="android-access"></div>
+        </section>
+
+        <section class="mobile-access-wrap desktop-ops-wrap" aria-label="PC運用司令室">
+          <div class="mobile-access-head">
+            <span>PC運用司令室</span>
+            <strong id="mobile-access-status">準備中</strong>
+          </div>
+          <div id="mobile-access" class="mobile-access"></div>
+        </section>
+
+        <div id="alert-panel" class="alert-panel calm">
+          <div>
+            <strong id="alert-title">&#12450;&#12521;&#12540;&#12488;&#12394;&#12375;</strong>
+            <span id="alert-detail">&#30064;&#24120;&#22793;&#21205;&#12392;&#20104;&#28204;&#20054;&#38626;&#12434;1&#20998;&#12372;&#12392;&#12395;&#30435;&#35222;&#12375;&#12414;&#12377;&#12290;</span>
+          </div>
+          <div class="alert-actions">
+            <button id="notify-toggle" type="button">通知＋サイレン OFF</button>
+            <button id="sound-toggle" type="button">サイレン OFF</button>
+          </div>
+        </div>
+
+        <section class="voice-briefing-wrap" aria-label="AI音声ブリーフィング">
+          <div class="voice-briefing-head">
+            <span>AI音声ブリーフィング</span>
+            <strong id="voice-briefing-status">待機中</strong>
+          </div>
+          <div class="voice-briefing">
+            <div>
+              <strong id="voice-briefing-line">AI音声をONにすると、現在の相場状況を日本語で継続報告します。</strong>
+              <span id="voice-briefing-detail">EUR/USD司令塔、スイング方向、予測確率、重要ニュース、アラートを短く読み上げます。</span>
+            </div>
+            <div class="voice-actions">
+              <select id="voice-mode" aria-label="AI音声の報告頻度">
+                <option value="important">重要変化のみ</option>
+                <option value="1">1分ごと</option>
+                <option value="5">5分ごと</option>
+              </select>
+              <button id="voice-test" type="button">今すぐ読む</button>
+              <button id="voice-toggle" type="button">AI音声 OFF</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="health-wrap" aria-label="データ取得ヘルス">
+          <div class="health-head">
+            <span>データ取得ヘルス</span>
+            <strong id="health-status">確認中</strong>
+          </div>
+          <div id="data-health" class="data-health"></div>
+        </section>
+
+        <section class="shock-log-wrap" aria-label="急変理由テーブル">
+          <div class="shock-log-head">
+            <span>急変理由テーブル</span>
+            <strong id="shock-log-count">0件</strong>
+          </div>
+          <div class="shock-search">
+            <input id="shock-search-input" type="search" placeholder="CPI / ECB / 急落 / EUR/USD" />
+            <select id="shock-direction-filter" aria-label="方向">
+              <option value="">全方向</option>
+              <option value="up">上方向</option>
+              <option value="down">下方向</option>
+              <option value="flat">横ばい</option>
+            </select>
+          </div>
+          <div id="shock-log" class="shock-log"></div>
+        </section>
+
+        <section id="time-machine-panel" class="time-machine-wrap" aria-label="相場のタイムマシン再生">
+          <div class="time-machine-head">
+            <div><span>相場のタイムマシン再生</span><small>その時点で利用可能だった情報だけを1分単位で再現</small></div>
+            <strong id="time-machine-audit">後知恵を遮断</strong>
+          </div>
+          <div class="time-machine-controls">
+            <select id="time-machine-event" aria-label="再生する急変動"></select>
+            <button id="time-machine-play" type="button" aria-label="再生または一時停止">▶ 再生</button>
+            <span id="time-machine-audio" role="status">音声待機</span>
+            <strong id="time-machine-clock">--:--</strong>
+          </div>
+          <input id="time-machine-slider" type="range" min="0" max="60" value="0" step="1" aria-label="急変前後の再生位置">
+          <div id="time-machine" class="time-machine"></div>
+        </section>
+
+        <div class="ticker-wrap">
+          <span>リアルタイムニュース</span>
+          <div id="news-ticker" class="news-ticker"></div>
+        </div>
+
+        <section class="fx-news-wrap" aria-label="為替ニュース">
+          <div class="fx-news-head">
+            <span>為替関連ニュース</span>
+            <strong>無料公開リンク</strong>
+          </div>
+          <div id="fx-news" class="fx-news"></div>
+        </section>
+
+        <section id="important-info-panel" class="important-info-wrap calm" aria-label="EUR/USD重要情報">
+          <div class="important-info-head">
+            <span>EUR/USD 重要ニュース・経済指標</span>
+            <strong id="important-info-status">監視中</strong>
+          </div>
+          <div id="important-info" class="important-info"></div>
+        </section>
+
+        <section class="calendar-wrap" aria-label="経済指標イベント">
+          <div class="calendar-head">
+            <span>重要経済指標イベント</span>
+            <strong id="calendar-status">監視中</strong>
+          </div>
+          <div id="economic-calendar" class="economic-calendar"></div>
+        </section>
+
+        <section id="cot-panel" class="cot-wrap flat" aria-label="CFTC COT大口ポジション">
+          <div class="cot-head">
+            <span>CFTC COT 大口ポジション</span>
+            <strong id="cot-status">週次監視</strong>
+          </div>
+          <div id="cot-analysis" class="cot-analysis"></div>
+        </section>
+
+        <section id="options-panel" class="options-wrap flat" aria-label="EUR/USDオプション建玉監視">
+          <div class="options-head">
+            <span>EUR/USD オプション建玉レーダー</span>
+            <strong id="options-status">取得中</strong>
+          </div>
+          <div id="options-analysis" class="options-analysis"></div>
+        </section>
+
+        <section id="command-center-panel" class="command-center-wrap calm" aria-label="マーケット司令室">
+          <div class="command-center-head">
+            <span>マーケット司令室</span>
+            <strong id="command-center-status">レジーム分析中</strong>
+          </div>
+          <div id="command-center" class="command-center"></div>
+        </section>
+
+        <section id="central-bank-tone-panel" class="central-bank-tone-wrap flat" aria-label="ECBとFRBの政策トーン比較">
+          <div class="central-bank-tone-head">
+            <span>ECB・FRB タカ派／ハト派判定</span>
+            <strong id="central-bank-tone-status">公式発表を比較中</strong>
+          </div>
+          <div id="central-bank-tone" class="central-bank-tone"></div>
+        </section>
+
+        <section id="ai-question-panel" class="ai-question-wrap" aria-label="AIに現在の状況を質問">
+          <div class="ai-question-head">
+            <div><span>AI現状質問</span><small>最新の価格・予測・ニュース・仮想取引から回答</small></div>
+            <strong id="ai-question-status">質問できます</strong>
+          </div>
+          <div class="ai-question-suggestions" aria-label="質問例">
+            <button type="button" data-ai-question="今のEUR/USDの方向と根拠は？">EUR/USD</button>
+            <button type="button" data-ai-question="仮想取引の状況は？">仮想取引</button>
+            <button type="button" data-ai-question="予測精度と弱点を教えて">予測精度</button>
+            <button type="button" data-ai-question="重要ニュースは何？">重要ニュース</button>
+          </div>
+          <form id="ai-question-form" class="ai-question-form">
+            <label for="ai-question-input">現在の状況について質問</label>
+            <div>
+              <input id="ai-question-input" type="text" maxlength="300" autocomplete="off" placeholder="例：今のドル円と保有ポジションは安全ですか？">
+              <button id="ai-question-submit" type="submit">質問する</button>
+            </div>
+          </form>
+          <div id="ai-question-answer" class="ai-question-answer" aria-live="polite">
+            <p>上の質問例を押すか、知りたい内容を入力してください。</p>
+          </div>
+        </section>
+
+        <section id="fundamental-news-panel" class="fundamental-news-wrap flat" aria-label="EUR/USDファンダメンタルズ速報収集">
+          <div class="fundamental-news-head">
+            <div><span>EUR/USD ファンダメンタルズ速報</span><small>FRB・ECB・BLS・Eurostat一次情報を1分監視</small></div>
+            <strong id="fundamental-news-status">一次情報を収集中</strong>
+          </div>
+          <div id="fundamental-news" class="fundamental-news"></div>
+        </section>
+
+        <section id="currency-strength-panel" class="currency-strength-wrap flat" aria-label="主要8通貨の通貨強弱">
+          <div class="currency-strength-head">
+            <span>主要8通貨 通貨強弱</span>
+            <strong id="currency-strength-status">確定5分足を分析中</strong>
+          </div>
+          <div class="oanda-strength-view">
+            <div class="oanda-strength-title">
+              <div><span>OANDA形式</span><strong>直近1時間の強弱推移（5分足）</strong></div>
+              <a href="https://www.oanda.jp/lab-education/oanda_lab/oanda_rab/currency_power_balance/" target="_blank" rel="noreferrer">公式ページを開く</a>
+            </div>
+            <div id="currency-strength-chart" class="currency-strength-chart"></div>
+          </div>
+          <div class="ai-strength-title"><span>AI予測に使用</span><strong>確定5分足 強弱分析</strong></div>
+          <div id="currency-strength" class="currency-strength"></div>
+        </section>
+
+        <section id="eurusd-command-panel" class="eurusd-command-wrap flat" aria-label="EUR/USD司令塔">
+          <div class="eurusd-command-head">
+            <span>EUR/USD 司令塔</span>
+            <strong id="eurusd-command-status">分析中</strong>
+          </div>
+          <div id="eurusd-command" class="eurusd-command"></div>
+        </section>
+
+        <section id="eurusd-pivot-panel" class="eurusd-pivot-wrap" aria-label="EUR/USDピボットチャート">
+          <div class="eurusd-pivot-head">
+            <div><span>EUR/USD ピボットチャート</span><small>TradingView Lightweight Charts</small></div>
+            <strong id="eurusd-pivot-status">確定足を取得中</strong>
+          </div>
+          <div class="pivot-timeframe-tabs" role="tablist" aria-label="ピボット時間足">
+            <button type="button" data-pivot-timeframe="m15" role="tab">15分</button>
+            <button type="button" data-pivot-timeframe="h1" role="tab" class="active" aria-selected="true">1時間</button>
+            <button type="button" data-pivot-timeframe="h4" role="tab">4時間</button>
+            <button type="button" data-pivot-timeframe="d1" role="tab">日足</button>
+            <button type="button" class="pivot-auto-line active" data-auto-line="eurusd" aria-pressed="true">AUTO LINE</button>
+          </div>
+          <div class="pivot-chart-stage">
+            <div id="eurusd-pivot-chart" class="eurusd-pivot-chart" aria-label="EUR/USDローソク足とピボットライン"></div>
+            <div id="eurusd-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
+          </div>
+          <div id="eurusd-pivot-levels" class="eurusd-pivot-levels"></div>
+          <div class="eurusd-pivot-note">
+            <span>一つ前の確定足で算出</span>
+            <span>P=(高値+安値+終値)÷3</span>
+            <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">Charts by TradingView</a>
+          </div>
+        </section>
+
+        <section id="usdjpy-pivot-panel" class="eurusd-pivot-wrap usdjpy-pivot-wrap" aria-label="USD/JPYピボットチャート">
+          <div class="eurusd-pivot-head">
+            <div><span>USD/JPY ピボットチャート</span><small>確定ローソク足・クラシックピボット</small></div>
+            <strong id="usdjpy-pivot-status">確定足を取得中</strong>
+          </div>
+          <div class="pivot-timeframe-tabs" role="tablist" aria-label="ドル円ピボット時間足">
+            <button type="button" data-usdjpy-pivot-timeframe="m15" role="tab">15分</button>
+            <button type="button" data-usdjpy-pivot-timeframe="h1" role="tab" class="active" aria-selected="true">1時間</button>
+            <button type="button" data-usdjpy-pivot-timeframe="h4" role="tab">4時間</button>
+            <button type="button" data-usdjpy-pivot-timeframe="d1" role="tab">日足</button>
+            <button type="button" class="pivot-auto-line active" data-auto-line="usdjpy" aria-pressed="true">AUTO LINE</button>
+          </div>
+          <div class="pivot-chart-stage">
+            <div id="usdjpy-pivot-chart" class="eurusd-pivot-chart" aria-label="USD/JPYローソク足とピボットライン"></div>
+            <div id="usdjpy-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
+          </div>
+          <div id="usdjpy-pivot-levels" class="eurusd-pivot-levels"></div>
+          <div class="eurusd-pivot-note">
+            <span>一つ前の確定足で算出</span>
+            <span>P=(高値+安値+終値)÷3</span>
+            <span>USD/JPY実測データ</span>
+          </div>
+        </section>
+
+        <section id="ytt-demo-panel" class="ytt-demo-wrap waiting" aria-label="YTT方式シナリオデモ取引">
+          <div class="ytt-demo-head">
+            <div><span>YTT方式 シナリオ・デモ取引</span><small>発動価格・損切り・利確を先に固定する独立練習口座</small></div>
+            <strong id="ytt-demo-status">注文シナリオを待機中</strong>
+          </div>
+          <form id="ytt-demo-form" class="ytt-demo-form">
+            <label>通貨ペア<select id="ytt-demo-pair"><option value="eurusd">EUR/USD</option><option value="usdjpy">USD/JPY</option></select></label>
+            <label>方向<select id="ytt-demo-side"><option value="long">買い</option><option value="short">売り</option></select></label>
+            <label>発動価格<input id="ytt-demo-trigger" type="number" step="0.00001" min="0" required></label>
+            <label>損切り<input id="ytt-demo-stop" type="number" step="0.00001" min="0" required></label>
+            <label>利確<input id="ytt-demo-target" type="number" step="0.00001" min="0" required></label>
+            <label>許容損失<select id="ytt-demo-risk"><option value="0.1">0.10%</option><option value="0.25">0.25%</option><option value="0.5">0.50%</option><option value="1">1.00%</option></select></label>
+            <button id="ytt-demo-submit" type="submit">予約シナリオを登録</button>
+          </form>
+          <div id="ytt-demo-account" class="ytt-demo-account"></div>
+          <div class="ytt-demo-columns">
+            <div><h3>注文・保有</h3><div id="ytt-demo-orders" class="ytt-demo-list"></div></div>
+            <div><h3>決済履歴</h3><div id="ytt-demo-trades" class="ytt-demo-list"></div></div>
+          </div>
+          <p class="ytt-demo-note">公式AI仮想口座とは別集計です。動画の手法を検証する練習機能で、実資金には接続しません。</p>
+        </section>
+
+        <section id="swing-compass-panel" class="swing-compass-wrap flat" aria-label="EUR/USDスイング方向コンパス">
+          <div class="swing-compass-head">
+            <span>EUR/USD スイング方向コンパス</span>
+            <strong id="swing-compass-status">分析中</strong>
+          </div>
+          <div id="swing-compass" class="swing-compass"></div>
+        </section>
+
+        <section id="probability-simulation-panel" class="prob-sim-wrap flat" aria-label="EUR/USD予測確率シミュレーター">
+          <div class="prob-sim-head">
+            <span>EUR/USD 予測確率シミュレーター</span>
+            <strong id="probability-simulation-status">計算中</strong>
+          </div>
+          <div id="probability-simulation" class="prob-sim"></div>
+        </section>
+
+        <section id="conformal-panel" class="conformal-wrap learning" aria-label="EUR/USD時系列コンフォーマル予測レンジ">
+          <div class="conformal-head">
+            <div><span>EUR/USD 10分 コンフォーマルレンジ</span><small>確定済みの過去残差だけで50・80・90%区間を校正</small></div>
+            <strong id="conformal-status">校正中</strong>
+          </div>
+          <div id="conformal-calibration" class="conformal-calibration"></div>
+        </section>
+
+        <section id="champion-challenger-panel" class="champion-challenger-wrap waiting" aria-label="EUR/USDモデル昇格審査">
+          <div class="champion-challenger-head">
+            <div><span>EUR/USD チャンピオン・チャレンジャー</span><small>確定済み・リーク防止データだけで昇格審査</small></div>
+            <strong id="champion-challenger-status">現行モデルを維持</strong>
+          </div>
+          <div id="champion-challenger" class="champion-challenger"></div>
+        </section>
+
+        <section id="yen-cross-command-panel" class="yen-cross-command-wrap learning" aria-label="円クロス司令塔">
+          <div class="yen-cross-command-head">
+            <div><span>円クロス司令塔</span><small>モデル・履歴・成績を通貨ペア別に完全分離</small></div>
+            <strong id="yen-cross-command-status">USD/JPYを準備中</strong>
+          </div>
+          <div id="yen-cross-command" class="yen-cross-command"></div>
+        </section>
+
+        <section id="validation-control-panel" class="validation-control-wrap learning" aria-label="予測検証統制">
+          <div class="validation-control-head">
+            <div><span>予測検証統制</span><small>未来情報監査・三者比較・根拠別成績を一括監視</small></div>
+            <strong id="validation-control-status">監査を準備中</strong>
+          </div>
+          <div id="validation-control" class="validation-control"></div>
+        </section>
+
+        <section id="paper-trading-panel" class="paper-trading-wrap official waiting" aria-label="1000万円公式デモ取引">
+          <div class="paper-trading-head">
+            <div><span>公式口座｜EUR/USD・USD/JPY 共通1,000万円</span><small>2通貨で資金と損失枠を共有・品質ゲート通過時のみ発注・実資金には接続しません</small></div>
+            <strong id="paper-trading-status">品質ゲートを監視中</strong>
+          </div>
+          <div id="paper-trading" class="paper-trading"></div>
+        </section>
+
+        <section id="trading-analytics-panel" class="trading-analytics-wrap" aria-label="予測ヒートマップと損益カレンダー">
+          <div class="trading-analytics-head">
+            <div><span>予測ヒートマップ・損益カレンダー</span><small>確定時間足の方向と公式仮想口座の日別確定損益</small></div>
+            <strong id="trading-analytics-status">分析を同期中</strong>
+          </div>
+          <div class="trading-analytics-grid">
+            <div id="forecast-heatmap" class="forecast-heatmap"></div>
+            <div id="profit-calendar" class="profit-calendar"></div>
+          </div>
+        </section>
+
+        <section id="shadow-paper-trading-panel" class="paper-trading-wrap shadow waiting" aria-label="1000万円学習用シャドー口座">
+          <div class="paper-trading-head">
+            <div><span>学習口座｜EUR/USD 1,000万円 シャドー運用</span><small>確定15分シグナルを品質ゲート不合格でも検証・実資金は使いません</small></div>
+            <strong id="shadow-paper-trading-status">確定15分足を監視中</strong>
+          </div>
+          <div id="shadow-paper-trading" class="paper-trading"></div>
+        </section>
+
+        <section class="gate-verification-wrap" aria-label="品質ゲート判断検証">
+          <div class="paper-trading-head">
+            <div><span>品質ゲート判断検証</span><small>公式口座と学習口座の比較・今後のゲート閾値学習用</small></div>
+            <strong>推定コスト控除後</strong>
+          </div>
+          <div id="paper-trading-comparison" class="paper-trading-comparison"></div>
+        </section>
+
+        <section id="trade-opportunity-panel" class="trade-opportunity-wrap waiting" aria-label="仮想取引機会監視">
+          <div class="trade-opportunity-head">
+            <div><span>仮想取引機会監視</span><small>取引回数ではなく、照合済みの良質な機会だけを選別</small></div>
+            <strong id="trade-opportunity-status">発注条件を確認中</strong>
+          </div>
+          <div id="trade-opportunity" class="trade-opportunity"></div>
+        </section>
+
+        <section id="ai-improvement-panel" class="ai-improvement-wrap flat" aria-label="AI改善エンジン">
+          <div class="ai-improvement-head">
+            <span>AI改善エンジン</span>
+            <strong id="ai-improvement-status">自己診断中</strong>
+          </div>
+          <div id="ai-improvement" class="ai-improvement"></div>
+          <div id="integrated-intelligence-summary" class="integrated-intelligence-summary" aria-label="統合市場心理"></div>
+        </section>
+
+        <section class="eurusd-timeframes-wrap" aria-label="EUR/USD時間足予測">
+          <div class="eurusd-timeframes-head">
+            <span>EUR/USD 時間足別予測</span>
+            <strong id="eurusd-timeframe-learning-status">スイング重視: 日足・週足・4時間足</strong>
+          </div>
+          <div id="daily-forecast-reference" class="daily-forecast-reference" aria-label="指定分析IDの日次予測"></div>
+          <div id="eurusd-timeframe-learning" class="timeframe-learning"></div>
+          <div id="eurusd-timeframes" class="eurusd-timeframes"></div>
+        </section>
+
+        <div class="intelligence-grid" hidden>
+          <section class="greed-panel" aria-label="Fear & Greed複合指数">
+            <div class="panel-head">
+              <span>Fear & Greed複合指数</span>
+              <strong id="greed-label">分析中</strong>
+            </div>
+            <div class="greed-meter">
+              <strong id="greed-score">--</strong>
+              <i><b id="greed-bar"></b></i>
+            </div>
+            <div id="greed-components" class="greed-components"></div>
+          </section>
+
+          <section class="country-panel" aria-label="国別リスク指数">
+            <div class="panel-head">
+              <span>国別リスク指数</span>
+              <strong>ニュース・災害・市場</strong>
+            </div>
+            <div id="country-risk" class="country-risk"></div>
+          </section>
+        </div>
+
+        <div id="market-grid" class="market-grid"></div>
+
+        <div class="radar-wrap">
+          <div class="radar-head">
+            <span>ショックレーダー</span>
+            <span id="watch-points-title">監視ポイント</span>
+          </div>
+          <div class="radar-body">
+            <div id="shock-radar" class="shock-radar"></div>
+            <div id="watch-points" class="watch-points"></div>
+          </div>
+        </div>
+
+        <div class="pulse-wrap">
+          <div class="pulse-head">
+            <span>世界パルス</span>
+            <span id="pulse-regime">分析中</span>
+          </div>
+          <div id="pulse-grid" class="pulse-grid"></div>
+        </div>
+
+        <div class="scenario-wrap">
+          <div class="scenario-head">
+            <span>シナリオ予測</span>
+            <span>日足方向の確率評価</span>
+          </div>
+          <div id="scenario-grid" class="scenario-grid"></div>
+        </div>
+
+        <div class="focus-wrap" hidden>
+          <div class="focus-head">
+            <span>注目ランキング（Qr1風）</span>
+            <span>ニュース・SNS・アラート統合</span>
+          </div>
+          <div id="focus-list" class="focus-list"></div>
+        </div>
+
+        <div class="signal-wrap">
+          <div class="signal-head">
+            <span>&#12491;&#12517;&#12540;&#12473; / SNS / &#20013;&#22830;&#37504;&#34892;&#12471;&#12464;&#12490;&#12523;</span>
+            <span id="signal-score">--</span>
+          </div>
+          <div id="signals" class="signals"></div>
+        </div>
+
+        <section id="verification-center" class="verification-center" aria-label="AI学習・過去検証センター">
+          <div class="verification-center-head">
+            <span>AI学習・過去検証センター</span>
+            <strong>照合・反省・成績を一画面に統合</strong>
+          </div>
+        <div class="learning-wrap">
+          <div class="learning-head">
+            <span>&#20104;&#28204;&#23398;&#32722;&#12398;&#29366;&#24907;</span>
+            <span id="learning-score">&#29031;&#21512;&#24453;&#12385;</span>
+          </div>
+          <div id="learning-grid" class="learning-grid"></div>
+        </div>
+
+        <section class="backtest-wrap" aria-label="過去分析">
+          <div class="backtest-head">
+            <span>過去分析ダッシュボード</span>
+            <strong id="backtest-score">照合待ち</strong>
+          </div>
+          <div id="backtest-grid" class="backtest-grid"></div>
+          <div id="backtest-recommendations" class="backtest-recommendations"></div>
+        </section>
+
+        <div class="history-wrap">
+          <div class="history-head">
+            <span>10&#20998;&#24460;&#12398;&#29031;&#21512;&#23653;&#27508;</span>
+            <span id="history-count">0&#20214;</span>
+          </div>
+          <div id="history" class="history"></div>
+        </div>
+        </section>
+      </section>
+    </main>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

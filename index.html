@@ -379,27 +379,16 @@
             <button type="button" data-pivot-timeframe="h4" role="tab">4時間</button>
             <button type="button" data-pivot-timeframe="d1" role="tab">日足</button>
             <button type="button" class="pivot-auto-line active" data-auto-line="eurusd" aria-pressed="true">AUTO LINE</button>
+            <button type="button" id="euro-sovereign-spread-toggle" class="pivot-spread-toggle" aria-pressed="false">仏独金利差</button>
           </div>
           <div class="pivot-chart-stage">
             <div id="eurusd-pivot-chart" class="eurusd-pivot-chart" aria-label="EUR/USDローソク足とピボットライン"></div>
             <div id="eurusd-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
           </div>
           <div id="eurusd-pivot-levels" class="eurusd-pivot-levels"></div>
-          <div class="euro-sovereign-spread" aria-label="フランス・ドイツ10年国債金利差">
-            <div class="euro-sovereign-spread-head">
-              <div>
-                <span>仏独10年国債 金利差</span>
-                <small>フランス10年 − ドイツ10年 / TradingView</small>
-              </div>
-              <strong id="euro-sovereign-spread-status">ECB公式データを取得中</strong>
-            </div>
-            <div id="euro-sovereign-spread-chart" class="euro-sovereign-spread-chart" aria-label="仏独10年国債金利差チャート"></div>
+          <div class="euro-sovereign-spread-summary" aria-label="フランス・ドイツ10年国債金利差">
+            <strong id="euro-sovereign-spread-status">ECB公式データを取得中</strong>
             <div id="euro-sovereign-spread-values" class="euro-sovereign-spread-values"></div>
-            <div class="euro-sovereign-spread-guide">
-              <div class="risk"><span>スプレッド拡大</span><strong>フランス信用・財政リスク上昇</strong><small>通常はEUR/USDの下押し要因</small></div>
-              <div class="relief"><span>スプレッド縮小</span><strong>ユーロ圏リスク後退</strong><small>通常はEUR/USDの支援要因</small></div>
-              <div><span>注意</span><strong>単独では売買しない</strong><small>ECB・米独金利差・ニュースと照合</small></div>
-            </div>
             <a class="euro-sovereign-tradingview-link" href="https://www.tradingview.com/chart/?symbol=TVC%3AFR10Y-TVC%3ADE10Y" target="_blank" rel="noreferrer">TradingViewでリアルタイム計算式チャートを開く</a>
           </div>
           <div class="eurusd-pivot-note">

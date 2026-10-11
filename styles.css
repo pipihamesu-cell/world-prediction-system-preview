@@ -2387,7 +2387,7 @@ html {
 .pivot-timeframe-tabs {
   padding: 10px 14px 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -2419,6 +2419,8 @@ html {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32); backdrop-filter: blur(8px);
 }
 .pivot-timeframe-tabs .pivot-auto-line{border-color:rgba(255,209,102,.36);color:#d6c17e}.pivot-timeframe-tabs .pivot-auto-line.active{border-color:#ffd166;background:rgba(255,209,102,.12);color:#fff1b5;box-shadow:inset 0 -2px #ffd166}
+.pivot-timeframe-tabs .pivot-spread-toggle { border-color: rgba(97, 216, 255, 0.38); color: #9edff2; }
+.pivot-timeframe-tabs .pivot-spread-toggle.active { border-color: #61d8ff; background: rgba(97, 216, 255, 0.14); color: #e0f9ff; box-shadow: inset 0 -2px #61d8ff; }
 .pivot-trade-overlay > div { min-width: 112px; padding: 7px 9px; border-right: 1px solid rgba(122, 169, 157, 0.16); }
 .pivot-trade-overlay span, .pivot-trade-overlay strong { display: block; white-space: nowrap; }
 .pivot-trade-overlay span { color: #78978f; font-size: 9px; font-weight: 700; }
@@ -2438,20 +2440,11 @@ html {
 .eurusd-pivot-levels span, .eurusd-pivot-levels strong { display: block; }
 .eurusd-pivot-levels span { color: var(--pivot-color); font-size: 10px; font-weight: 800; }
 .eurusd-pivot-levels strong { margin-top: 2px; color: #e4f2ee; font-size: 13px; }
-.euro-sovereign-spread { margin: 0 14px 12px; border: 1px solid rgba(97, 216, 255, 0.2); background: #06100f; }
-.euro-sovereign-spread-head { min-height: 48px; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(126, 165, 155, 0.16); }
-.euro-sovereign-spread-head > div { display: grid; gap: 2px; }
-.euro-sovereign-spread-head span { color: #e8f6f1; font-size: 13px; font-weight: 800; }
-.euro-sovereign-spread-head small { color: #708d85; font-size: 10px; }
-.euro-sovereign-spread-head strong { color: #61d8ff; font-size: 11px; text-align: right; }
-.euro-sovereign-spread-chart { height: 280px; background: #071311; }
-.euro-sovereign-spread-chart svg { width: 100%; height: 100%; display: block; }
-.spread-grid { stroke: rgba(113, 151, 142, 0.13); stroke-width: 1; }
-.spread-axis { fill: #78978f; font: 12px Inter, system-ui, sans-serif; }
-.spread-area { fill: rgba(97, 216, 255, 0.08); }
-.spread-line { fill: none; stroke: #61d8ff; stroke-width: 3; vector-effect: non-scaling-stroke; }
-.spread-point { fill: #071311; stroke: #61d8ff; stroke-width: 2; vector-effect: non-scaling-stroke; }
-.euro-sovereign-spread-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(126, 165, 155, 0.16); }
+.eurusd-spread-iframe { width: 100%; height: 100%; display: block; border: 0; background: #071311; }
+.pivot-trade-overlay[hidden], .eurusd-pivot-levels[hidden] { display: none !important; }
+.euro-sovereign-spread-summary { margin: 0 14px 12px; display: grid; grid-template-columns: auto minmax(300px, 1fr) auto; align-items: center; gap: 10px; border: 1px solid rgba(97, 216, 255, 0.2); background: #06100f; }
+.euro-sovereign-spread-summary > strong { padding: 9px 11px; color: #61d8ff; font-size: 11px; }
+.euro-sovereign-spread-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .euro-sovereign-spread-values > div { padding: 8px 11px; border-right: 1px solid rgba(126, 165, 155, 0.12); }
 .euro-sovereign-spread-values > div:last-child { border-right: 0; }
 .euro-sovereign-spread-values span, .euro-sovereign-spread-values strong { display: block; }
@@ -2459,16 +2452,7 @@ html {
 .euro-sovereign-spread-values strong { margin-top: 3px; color: #e7f5f1; font-size: 14px; }
 .euro-sovereign-spread-values strong.up { color: #64d8b4; }
 .euro-sovereign-spread-values strong.down { color: #ff7181; }
-.euro-sovereign-spread-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(126, 165, 155, 0.16); }
-.euro-sovereign-spread-guide > div { min-width: 0; padding: 9px 11px; border-right: 1px solid rgba(126, 165, 155, 0.12); }
-.euro-sovereign-spread-guide > div:last-child { border-right: 0; }
-.euro-sovereign-spread-guide span, .euro-sovereign-spread-guide strong, .euro-sovereign-spread-guide small { display: block; }
-.euro-sovereign-spread-guide span { color: #78978f; font-size: 9px; font-weight: 800; }
-.euro-sovereign-spread-guide strong { margin-top: 3px; color: #dbece7; font-size: 11px; }
-.euro-sovereign-spread-guide small { margin-top: 2px; color: #718b84; font-size: 9px; }
-.euro-sovereign-spread-guide .risk strong { color: #ff7181; }
-.euro-sovereign-spread-guide .relief strong { color: #64d8b4; }
-.euro-sovereign-tradingview-link { display: block; padding: 10px 12px; border-top: 1px solid rgba(126, 165, 155, 0.16); color: #79d9bc; font-size: 11px; font-weight: 800; text-align: right; }
+.euro-sovereign-tradingview-link { padding: 10px 12px; color: #79d9bc; font-size: 11px; font-weight: 800; text-align: right; }
 .eurusd-pivot-note { padding: 0 14px 12px; display: flex; flex-wrap: wrap; gap: 8px 16px; color: #6f8b84; font-size: 10px; }
 .eurusd-pivot-note a { margin-left: auto; color: #79bfa9; }
 
@@ -2476,7 +2460,7 @@ html {
   .eurusd-pivot-head { align-items: flex-start; flex-direction: column; }
   .eurusd-pivot-head strong { text-align: left; }
   .pivot-timeframe-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pivot-timeframe-tabs .pivot-auto-line { grid-column: 1 / -1; }
+  .pivot-timeframe-tabs .pivot-auto-line, .pivot-timeframe-tabs .pivot-spread-toggle { grid-column: auto; }
   .pivot-timeframe-tabs button { min-height: 44px; font-size: 15px; }
   .eurusd-pivot-chart { height: 380px; }
   .pivot-trade-overlay { top: 8px; left: 8px; right: 64px; max-width: none; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2485,15 +2469,8 @@ html {
   .eurusd-pivot-levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eurusd-pivot-levels div:nth-child(4) { grid-column: 1 / -1; }
   .eurusd-pivot-levels strong { font-size: 15px; }
-  .euro-sovereign-spread { margin: 0 8px 12px; }
-  .euro-sovereign-spread-head { align-items: flex-start; flex-direction: column; }
-  .euro-sovereign-spread-head strong { font-size: 13px; text-align: left; }
-  .euro-sovereign-spread-chart { height: 340px; }
-  .euro-sovereign-spread-guide { grid-template-columns: 1fr; }
-  .euro-sovereign-spread-guide > div { border-right: 0; border-bottom: 1px solid rgba(126, 165, 155, 0.12); }
-  .euro-sovereign-spread-guide > div:last-child { border-bottom: 0; }
-  .euro-sovereign-spread-guide strong { font-size: 14px; }
-  .euro-sovereign-spread-guide small { font-size: 12px; }
+  .euro-sovereign-spread-summary { margin: 0 8px 12px; grid-template-columns: 1fr; gap: 0; }
+  .euro-sovereign-spread-summary > strong { font-size: 13px; }
   .euro-sovereign-spread-values strong { font-size: 16px; }
   .euro-sovereign-tradingview-link { min-height: 44px; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center; }
   .eurusd-pivot-note a { margin-left: 0; }

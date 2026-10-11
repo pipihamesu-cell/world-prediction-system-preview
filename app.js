@@ -682,10 +682,46 @@ function renderEurusdSovereignSpreadChart() {
   euroSovereignSpreadToggleEl?.setAttribute("aria-pressed", "true");
   if (eurusdPivotTradeEl) eurusdPivotTradeEl.hidden = true;
   eurusdPivotLevelsEl.hidden = true;
-  const latest = latestEuroSovereignSpread?.series?.at(-1);
-  const officialValue = latest ? ` / ECB月次 ${Number(latest.spreadBp).toFixed(1)}bp` : "";
-  eurusdPivotStatusEl.textContent = `仏独10年金利差 / 日足 / フランス10年 − ドイツ10年${officialValue}`;
-  eurusdPivotChartEl.innerHTML = '<iframe class="eurusd-spread-iframe" title="TradingView 仏独10年国債金利差 日足" src="./euro-spread-chart.html" loading="eager" referrerpolicy="origin" allowtransparency="true"></iframe>';
+  const rows = latestEuroSovereignSpread?.series || [];
+  const latest = rows.at(-1);
+  const officialValue = latest ? ` / 最新 ${Number(latest.spreadBp).toFixed(1)}bp` : "";
+  eurusdPivotStatusEl.textContent = `仏独10年金利差 / ECB公式月次 / フランス10年 − ドイツ10年${officialValue}`;
+  eurusdPivotChartEl.innerHTML = "";
+  if (!rows.length) {
+    eurusdPivotChartEl.innerHTML = '<div class="pivot-chart-empty">ECB公式金利差データを取得しています。</div>';
+    return;
+  }
+  if (!window.LightweightCharts) {
+    eurusdPivotChartEl.innerHTML = `<div class="pivot-chart-empty">仏独10年金利差 ${Number(latest.spreadBp).toFixed(1)}bp<br>チャートライブラリを再読込してください。</div>`;
+    return;
+  }
+  const LC = window.LightweightCharts;
+  eurusdPivotChart = LC.createChart(eurusdPivotChartEl, {
+    width: eurusdPivotChartEl.clientWidth,
+    height: eurusdPivotChartEl.clientHeight,
+    attributionLogo: true,
+    layout: { background: { type: "solid", color: "#071311" }, textColor: "#8fa9a3", fontFamily: "Inter, system-ui, sans-serif" },
+    grid: { vertLines: { color: "rgba(113, 151, 142, 0.08)" }, horzLines: { color: "rgba(113, 151, 142, 0.1)" } },
+    rightPriceScale: { borderColor: "rgba(126, 165, 155, 0.22)", scaleMargins: { top: 0.12, bottom: 0.12 } },
+    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: false, rightOffset: 3 },
+    crosshair: { mode: LC.CrosshairMode?.Normal ?? 0 },
+    localization: { priceFormatter: (value) => `${Number(value).toFixed(2)}%` }
+  });
+  const addLine = (title, color, field, width = 2) => {
+    const options = { title, color, lineWidth: width, priceFormat: { type: "price", precision: 3, minMove: 0.001 }, lastValueVisible: true, priceLineVisible: false };
+    const line = eurusdPivotChart.addSeries
+      ? eurusdPivotChart.addSeries(LC.LineSeries, options)
+      : eurusdPivotChart.addLineSeries(options);
+    line.setData(rows.map((row) => ({ time: `${row.date}-01`, value: Number(row[field]) })).filter((point) => Number.isFinite(point.value)));
+  };
+  addLine("フランス10年", "#ff7181", "france", 2);
+  addLine("ドイツ10年", "#61d8ff", "germany", 2);
+  addLine("金利差", "#ffd166", "spreadPct", 3);
+  eurusdPivotChart.timeScale().fitContent();
+  eurusdPivotResizeObserver = new ResizeObserver(() => {
+    eurusdPivotChart?.applyOptions({ width: eurusdPivotChartEl.clientWidth, height: eurusdPivotChartEl.clientHeight });
+  });
+  eurusdPivotResizeObserver.observe(eurusdPivotChartEl);
 }
 
 function initGlobe() {

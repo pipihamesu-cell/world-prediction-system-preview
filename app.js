@@ -2674,6 +2674,14 @@ function renderYenCrossCommand(command) {
       <span>${pair.trustedSources || 0}系統一致 / 鮮度 ${pair.freshnessSeconds || 0}秒</span>
       <small>${pair.provider || "価格取得中"}</small>
     </div>
+    ${command.eurjpyShadow ? `<div class="yen-cross-challenger shadow">
+      <header><div><span>EUR/JPY 15分足・影モデル</span><strong>${command.eurjpyShadow.verified ? `${price(command.eurjpyShadow.current)} → ${price(command.eurjpyShadow.predicted)}` : "二系統の価格照合待ち"}</strong></div><b>公式取引未接続</b></header>
+      <div>
+        <article><span>予測方向</span><strong>${command.eurjpyShadow.direction === "up" ? "上方向" : command.eurjpyShadow.direction === "down" ? "下方向" : "中立"}</strong><small>${Number(command.eurjpyShadow.deltaPct || 0) >= 0 ? "+" : ""}${Number(command.eurjpyShadow.deltaPct || 0).toFixed(4)}% / 信頼 ${Math.round(Number(command.eurjpyShadow.confidence || 0.5) * 100)}%</small></article>
+        <article><span>独立前向き照合</span><strong>${command.eurjpyShadow.performance?.samples || 0}/30件</strong><small>方向一致 ${command.eurjpyShadow.performance?.hitRate == null ? "--" : `${Math.round(command.eurjpyShadow.performance.hitRate * 100)}%`} / 待ち ${command.eurjpyShadow.performance?.pending || 0}件</small></article>
+        <article><span>コスト控除後</span><strong>${Number(command.eurjpyShadow.performance?.netReturnPct || 0) >= 0 ? "+" : ""}${Number(command.eurjpyShadow.performance?.netReturnPct || 0).toFixed(3)}%</strong><small>EUR−JPY強度差 ${Number(command.eurjpyShadow.strengthSpread || 0) >= 0 ? "+" : ""}${Number(command.eurjpyShadow.strengthSpread || 0).toFixed(2)}σ</small></article>
+      </div><p>${command.eurjpyShadow.performance?.safeguard || command.eurjpyShadow.method}</p>
+    </div>` : ""}
     <div class="yen-cross-drivers">${(command.drivers || []).map((item) => `<div><span>${item.label}</span><strong class="${Number(item.value) >= 0 ? "up" : "down"}">${item.direction}</strong><small>${Number(item.value) >= 0 ? "+" : ""}${Number(item.value).toFixed(4)}</small></div>`).join("")}</div>
     <div class="yen-cross-subhead"><strong>時間足別USD/JPYモデル</strong><span>確定足だけで方向判定</span></div>
     <div class="yen-cross-timeframes">${(command.timeframes || []).map((item) => `<div class="${item.direction || "flat"}"><span>${item.label}</span><strong>${item.direction === "up" ? "円安" : item.direction === "down" ? "円高" : "中立"} ${price(item.predicted)}</strong><small>${Number(item.deltaPct || 0) >= 0 ? "+" : ""}${Number(item.deltaPct || 0).toFixed(3)}% / 信頼 ${Math.round(Number(item.confidence || 0) * 100)}% ${item.confirmed ? "・確定" : "・参考"}</small></div>`).join("")}</div>
@@ -2711,7 +2719,7 @@ function renderYenCrossCommand(command) {
       <div><span>EUR/USD・USD/JPY 共通仮想口座</span><strong>${Number(command.sharedPaperTrading?.equity || 10000000).toLocaleString("ja-JP")}円</strong><small>${command.sharedPaperTrading?.note || "総資金1,000万円・同時保有1件"}</small></div>
       <div><span>USD/JPY 前向き予測検証</span><strong>${command.paperTrading?.trades || 0}件 / ${command.paperTrading?.winRate == null ? "蓄積中" : `方向一致 ${Math.round(command.paperTrading.winRate * 100)}%`}</strong><small>${command.paperTrading?.status || "価格照合待ち"} / これは別口座ではなく予測成績です</small></div>
     </div>
-    <div class="yen-cross-pipeline">${(command.pipeline || []).map((item) => `<div class="${item.id === "usdjpy" ? "active" : "queued"}"><span>${item.label}</span><strong>${item.status}</strong></div>`).join("")}</div>
+    <div class="yen-cross-pipeline">${(command.pipeline || []).map((item) => `<div class="${["usdjpy", "eurjpy"].includes(item.id) ? "active" : "queued"}"><span>${item.label}</span><strong>${item.status}</strong></div>`).join("")}</div>
     <div class="yen-cross-safeguards">${(command.safeguards || []).map((item) => `<span>${item}</span>`).join("")}</div>
   `;
 }

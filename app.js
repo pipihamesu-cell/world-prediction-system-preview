@@ -29,6 +29,7 @@ const alertPanelEl = document.getElementById("alert-panel");
 const alertTitleEl = document.getElementById("alert-title");
 const alertDetailEl = document.getElementById("alert-detail");
 const soundToggleEl = document.getElementById("sound-toggle");
+const soundPreviewEl = document.getElementById("sound-preview");
 const notifyToggleEl = document.getElementById("notify-toggle");
 const voiceToggleEl = document.getElementById("voice-toggle");
 const voiceStatusEl = document.getElementById("voice-briefing-status");
@@ -197,6 +198,13 @@ let notificationBusy = false;
 let voiceEnabled = localStorage.getItem("worldPredictionVoice") === "on";
 let voiceMode = localStorage.getItem("worldPredictionVoiceMode") || "important";
 let rebalanceIntelligenceRail = () => {};
+let soundscapeContext = null;
+let soundscapeMaster = null;
+let soundscapeNodes = [];
+let soundscapeTimer = null;
+let soundscapeMode = "off";
+let soundPreviewTimers = [];
+let soundPreviewActive = false;
 
 function initResponsiveIntelligenceRail() {
   if (!leftIntelligenceStackEl) return;
@@ -3119,6 +3127,147 @@ function playAlertTone(severity, { force = false, preview = false } = {}) {
   setTimeout(() => ctx.close().catch(() => undefined), 700);
 }
 
+function stopMarketSoundscape() {
+  if (soundscapeTimer) clearInterval(soundscapeTimer);
+  soundscapeTimer = null;
+  soundscapeNodes.forEach((node) => {
+    try { node.stop?.(); } catch {}
+    try { node.disconnect?.(); } catch {}
+  });
+  soundscapeNodes = [];
+  if (soundscapeMaster && soundscapeContext) {
+    const now = soundscapeContext.currentTime;
+    soundscapeMaster.gain.cancelScheduledValues(now);
+    soundscapeMaster.gain.setValueAtTime(Math.max(0.0001, soundscapeMaster.gain.value), now);
+    soundscapeMaster.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+  }
+  soundscapeMode = "off";
+}
+
+function ensureSoundscapeContext() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return null;
+  if (!soundscapeContext || soundscapeContext.state === "closed") {
+    soundscapeContext = new AudioContext();
+    soundscapeMaster = soundscapeContext.createGain();
+    soundscapeMaster.gain.value = 0.0001;
+    soundscapeMaster.connect(soundscapeContext.destination);
+  }
+  soundscapeContext.resume?.().catch(() => undefined);
+  return soundscapeContext;
+}
+
+function playSoundscapeNote(frequency, start, duration, volume, type = "sine") {
+  const ctx = soundscapeContext;
+  if (!ctx || !soundscapeMaster) return;
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + Math.min(0.08, duration / 4));
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(soundscapeMaster);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function startAmbientSoundscape() {
+  const ctx = ensureSoundscapeContext();
+  if (!ctx || !soundscapeMaster) return;
+  const now = ctx.currentTime;
+  soundscapeMaster.gain.cancelScheduledValues(now);
+  soundscapeMaster.gain.setValueAtTime(0.0001, now);
+  soundscapeMaster.gain.exponentialRampToValueAtTime(0.42, now + 0.7);
+  [174.61, 261.63].forEach((frequency, index) => {
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequency;
+    gain.gain.value = index === 0 ? 0.018 : 0.009;
+    oscillator.connect(gain);
+    gain.connect(soundscapeMaster);
+    oscillator.start();
+    soundscapeNodes.push(oscillator, gain);
+  });
+  const chime = () => {
+    const start = ctx.currentTime + 0.03;
+    [349.23, 440, 523.25].forEach((frequency, index) => playSoundscapeNote(frequency, start + index * 0.32, 1.8, 0.018));
+  };
+  chime();
+  soundscapeTimer = setInterval(chime, 9000);
+  soundscapeMode = "ambient";
+}
+
+function startTradeSoundscape(side) {
+  const ctx = ensureSoundscapeContext();
+  if (!ctx || !soundscapeMaster) return;
+  const now = ctx.currentTime;
+  soundscapeMaster.gain.cancelScheduledValues(now);
+  soundscapeMaster.gain.setValueAtTime(0.0001, now);
+  soundscapeMaster.gain.exponentialRampToValueAtTime(0.52, now + 0.25);
+  const notes = side === "long"
+    ? [261.63, 329.63, 392, 523.25]
+    : [293.66, 349.23, 440, 523.25];
+  let step = 0;
+  const pulse = () => {
+    const start = ctx.currentTime + 0.02;
+    playSoundscapeNote(notes[step % notes.length], start, 0.28, 0.055, "triangle");
+    if (step % 2 === 0) playSoundscapeNote(notes[0] / 2, start, 0.18, 0.045, "sine");
+    step += 1;
+  };
+  pulse();
+  soundscapeTimer = setInterval(pulse, 430);
+  soundscapeMode = `trade-${side}`;
+}
+
+function syncMarketSoundscape(position = null) {
+  const requestedMode = !soundEnabled ? "off" : position ? `trade-${position.side}` : "ambient";
+  if (soundToggleEl) {
+    const modeLabel = requestedMode === "ambient"
+      ? "待機音"
+      : requestedMode === "trade-long"
+        ? "買い"
+        : requestedMode === "trade-short"
+          ? "売り"
+          : "";
+    soundToggleEl.textContent = soundEnabled ? `音響 ON${modeLabel ? `・${modeLabel}` : ""}` : "音響 OFF";
+    soundToggleEl.title = soundEnabled
+      ? `${modeLabel || "音響"}を再生中。押すと停止します`
+      : "押すと待機中はリラックス音、仮想取引中はトレード音を再生します";
+  }
+  if (requestedMode === soundscapeMode) return;
+  stopMarketSoundscape();
+  if (!soundEnabled) return;
+  if (position) startTradeSoundscape(position.side);
+  else startAmbientSoundscape();
+}
+
+function previewMarketSoundscape() {
+  soundPreviewTimers.forEach(clearTimeout);
+  soundPreviewTimers = [];
+  soundPreviewActive = true;
+  soundEnabled = true;
+  localStorage.setItem("worldPredictionSound", "on");
+  const showStage = (side, label) => {
+    stopMarketSoundscape();
+    if (paperPositionBarEl) paperPositionBarEl.className = `paper-position-bar active ${side} ${side === "long" ? "profit" : "loss"}`;
+    if (paperPositionStateEl) paperPositionStateEl.textContent = `音響デモ：${label}`;
+    if (soundToggleEl) soundToggleEl.textContent = `音響 ON・${label}`;
+    startTradeSoundscape(side);
+  };
+  showStage("long", "買い");
+  soundPreviewTimers.push(setTimeout(() => showStage("short", "売り"), 3500));
+  soundPreviewTimers.push(setTimeout(() => {
+    soundPreviewActive = false;
+    const official = latestSnapshot?.paperTrading;
+    const shadow = latestSnapshot?.shadowPaperTrading;
+    if (official) renderPaperPositionBar(official, shadow);
+    else syncMarketSoundscape(null);
+  }, 7000));
+}
+
 function notificationSupported() {
   return "Notification" in window && "serviceWorker" in navigator && window.isSecureContext;
 }
@@ -3147,7 +3296,7 @@ function showOpenedNotificationDetail() {
   if (params.get("siren") === "1") {
     soundEnabled = true;
     localStorage.setItem("worldPredictionSound", "on");
-    soundToggleEl.textContent = "サイレン ON";
+    soundToggleEl.textContent = "音響 ON";
     playAlertTone("critical", { force: true });
   }
   requestAnimationFrame(() => {
@@ -3275,9 +3424,14 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
   `;
 }
 
-function renderPaperPositionBar(official) {
+function renderPaperPositionBar(official, shadow = null) {
   if (!paperPositionBarEl || !paperPositionStateEl || !paperPositionSummaryEl || !official) return;
-  const position = official.position;
+  if (soundPreviewActive) return;
+  const position = official.position || shadow?.position || null;
+  const accountLabel = official.position ? "公式仮想口座" : position ? "学習用仮想口座" : "公式仮想口座";
+  const liveLabelEl = paperPositionBarEl.querySelector(".paper-position-live");
+  if (liveLabelEl) liveLabelEl.innerHTML = `<i></i> ${accountLabel}`;
+  syncMarketSoundscape(position);
   const yen = (value, signed = false) => {
     const number = Number(value || 0);
     return `${signed && number > 0 ? "+" : ""}${number.toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
@@ -3369,7 +3523,7 @@ function renderTradingAnalytics(official, eurusdFrames = [], yenCrossCommand = n
 }
 
 function renderPaperTrading(official, shadow, comparison) {
-  renderPaperPositionBar(official);
+  renderPaperPositionBar(official, shadow);
   renderPaperAccount(official, paperTradingPanelEl, paperTradingStatusEl, paperTradingEl);
   if (detailMode === "full") renderPaperAccount(shadow, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
   if (!paperTradingComparisonEl || !comparison) return;
@@ -4191,7 +4345,7 @@ profitCalendarEl?.addEventListener("click", (event) => {
 });
 updateVoiceUi();
 updateNotificationUi();
-soundToggleEl.textContent = soundEnabled ? "サイレン ON" : "サイレン OFF";
+soundToggleEl.textContent = soundEnabled ? "音響 ON" : "音響 OFF";
 loadSnapshot().finally(scheduleSnapshotRefresh);
 window.speechSynthesis?.addEventListener?.("voiceschanged", updateVoiceUi);
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -4283,11 +4437,16 @@ applyDetailMode({ rerender: false });
 mapAlertMarkersEl?.addEventListener("click", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));
 mapEventDetailCloseEl?.addEventListener("click", () => { mapEventDetailEl.hidden = true; });
 soundToggleEl.addEventListener("click", () => {
+  soundPreviewActive = false;
+  soundPreviewTimers.forEach(clearTimeout);
+  soundPreviewTimers = [];
   soundEnabled = !soundEnabled;
   localStorage.setItem("worldPredictionSound", soundEnabled ? "on" : "off");
-  soundToggleEl.textContent = soundEnabled ? "サイレン ON" : "サイレン OFF";
-  if (soundEnabled) playAlertTone("critical", { force: true, preview: true });
+  soundToggleEl.textContent = soundEnabled ? "音響 ON" : "音響 OFF";
+  const position = latestSnapshot?.paperTrading?.position || latestSnapshot?.shadowPaperTrading?.position || null;
+  syncMarketSoundscape(position);
 });
+soundPreviewEl?.addEventListener("click", previewMarketSoundscape);
 notifyToggleEl?.addEventListener("click", async () => {
   if (notificationsEnabled && Notification.permission === "granted") {
     notificationsEnabled = false;
@@ -4298,7 +4457,7 @@ notifyToggleEl?.addEventListener("click", async () => {
   }
   soundEnabled = true;
   localStorage.setItem("worldPredictionSound", "on");
-  soundToggleEl.textContent = "サイレン ON";
+  soundToggleEl.textContent = "音響 ON";
   playAlertTone("critical", { force: true, preview: true });
   const ok = await requestNotificationAccess();
   if (ok) notificationStatusMessage = "公式仮想取引の開始・終了時だけ通知します。";

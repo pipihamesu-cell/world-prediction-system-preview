@@ -6014,6 +6014,18 @@ body.design-command .shell {
 .paper-position-bar:hover { background: #091720; }
 .paper-position-bar.active.profit { box-shadow: inset 4px 0 0 var(--green), 0 8px 24px rgba(0,0,0,.2); }
 .paper-position-bar.active.loss { box-shadow: inset 4px 0 0 var(--red), 0 8px 24px rgba(0,0,0,.2); }
+.paper-position-bar.active.long { animation: paperTradeBuyFlash 1.25s ease-in-out infinite; }
+.paper-position-bar.active.short { animation: paperTradeSellFlash 1.25s ease-in-out infinite; }
+@keyframes paperTradeBuyFlash {
+  0%, 100% { background: #16090c; outline-color: rgba(255, 74, 79, .22); }
+  50% { background: #561116; outline-color: rgba(255, 74, 79, .92); }
+}
+@keyframes paperTradeSellFlash {
+  0%, 100% { background: #071523; outline-color: rgba(56, 162, 255, .22); }
+  50% { background: #0b3e70; outline-color: rgba(56, 162, 255, .92); }
+}
+.paper-position-bar.active.long,
+.paper-position-bar.active.short { outline: 2px solid transparent; outline-offset: -2px; }
 .paper-position-lead { display: grid; align-content: center; gap: 5px; padding: 9px 16px; border-right: 1px solid var(--line); }
 .paper-position-live { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .paper-position-live i { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 9px currentColor; }
@@ -6030,6 +6042,13 @@ body.design-command .shell {
 .paper-position-range > div i { width: 9px; height: 9px; position: absolute; top: 50%; border: 2px solid #061017; border-radius: 50%; background: #fff; box-shadow: 0 0 8px #fff; transform: translate(-50%,-50%); }
 .paper-position-jump { display: flex; align-items: center; gap: 7px; padding: 0 14px; color: var(--cyan); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .paper-position-jump b { font-size: 22px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-position-bar.active.long,
+  .paper-position-bar.active.short { animation: none; }
+  .paper-position-bar.active.long { background: #421015; outline-color: rgba(255, 74, 79, .8); }
+  .paper-position-bar.active.short { background: #0b345c; outline-color: rgba(56, 162, 255, .8); }
+}
 
 .globe-section {
   grid-column: 1;

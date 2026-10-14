@@ -2779,7 +2779,7 @@ function renderValidationControl(leakage, gate, ledger) {
   `;
 }
 
-function renderAiImprovement(improvement) {
+function renderAiImprovement(improvement, factorAllocator) {
   if (!aiImprovementEl || !improvement) return;
   const score = Number(improvement.score || 0);
   const tone = score >= 74 ? "up" : score >= 55 ? "flat" : "down";
@@ -2794,6 +2794,10 @@ function renderAiImprovement(improvement) {
   const technicalRows = improvement.technicalRows || [];
   const activeAdjustment = improvement.activeAdjustment || {};
   const smartMoney = improvement.smartMoney || {};
+  const factorRows = Object.values(factorAllocator?.factors || {});
+  const factorProgress = factorAllocator
+    ? `${Math.min(Number(factorAllocator.independentSamples || 0), Number(factorAllocator.periodSamples || 20) * 2)}/${Number(factorAllocator.periodSamples || 20) * 2}`
+    : "0/40";
   aiImprovementEl.innerHTML = `
     <div class="ai-improvement-main">
       <div class="ai-improvement-score">
@@ -2806,6 +2810,29 @@ function renderAiImprovement(improvement) {
         <strong>${actions[0] || "保存件数を増やして校正を続けます。"}</strong>
         <small>データヘルス ${improvement.dataHealth || "未確認"} / ${activeAdjustment.note || "通常補正です。"}</small>
       </div>
+    </div>
+    <div class="factor-adaptation-panel">
+      <div class="ai-technical-head">
+        <span>4時間 要因別適応システム</span>
+        <strong>${factorAllocator?.modelVersion || "現行モデル確認中"} / ${factorProgress}独立標本</strong>
+      </div>
+      <div class="factor-adaptation-grid">
+        ${factorRows.map((factor) => {
+          const multiplier = Number(factor.multiplier || 1);
+          const tone = multiplier < 1 ? "reduced" : multiplier > 1 ? "boosted" : "learning";
+          const recent = factor.recent || {};
+          const previous = factor.previous || {};
+          const net = (value) => value == null ? "--" : `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(4)}%`;
+          const interval = (value) => value?.low == null ? "標本不足" : `${net(value.low)}〜${net(value.high)}`;
+          return `<article class="factor-adaptation-card ${tone}">
+            <header><span>${factor.label}</span><strong>×${multiplier.toFixed(2)}</strong></header>
+            <b>${factor.status || "検証中"}</b>
+            <div><span>前期間 ${previous.samples || 0}/${factorAllocator.periodSamples}</span><strong>${net(previous.averageNetPct)}</strong><small>95% ${interval(previous.interval95)}</small></div>
+            <div><span>直近 ${recent.samples || 0}/${factorAllocator.periodSamples}</span><strong>${net(recent.averageNetPct)}</strong><small>95% ${interval(recent.interval95)}</small></div>
+          </article>`;
+        }).join("") || `<article class="factor-adaptation-card learning"><header><span>要因別検証</span><strong>×1.00</strong></header><b>現行モデルの4時間結果を待機中</b><div><span>前期間</span><strong>--</strong><small>20件から判定</small></div><div><span>直近</span><strong>--</strong><small>20件から判定</small></div></article>`}
+      </div>
+      <small class="factor-adaptation-policy">${factorAllocator?.policy || "前後二期間のコスト控除後実績が一致した場合だけ、予測要因の重みを安全範囲で変更します。"}</small>
     </div>
     <div class="ai-technical-explain">
       <div class="ai-technical-head">
@@ -4230,7 +4257,7 @@ async function loadSnapshot(forceFull = false) {
     if (detailMode === "full") renderYttDemoTrading(snapshot.yttDemoTrading);
     if (!yttDemoTriggerEl?.value) prefillYttScenario();
     renderTradeOpportunityMonitor(snapshot.paperTrading, snapshot.probabilitySimulation, snapshot.yenCrossCommand, snapshot.threeWayGate);
-    renderAiImprovement(snapshot.aiImprovement);
+    renderAiImprovement(snapshot.aiImprovement, snapshot.context?.fxCausalModel?.fourHourFactorAllocator);
     renderEurusdTimeframes(snapshot.eurusdTimeframes || [], snapshot.eurusdTimeframeLearning, snapshot.dailyForecastReference);
     renderForecastNewsflash(snapshot.eurusdTimeframes || [], (snapshot.markets || []).find((market) => market.id === "eurusd"));
     renderIntegratedIntelligence(snapshot.fearGreed, snapshot.context?.countryRisk || [], snapshot.focusRanking || []);

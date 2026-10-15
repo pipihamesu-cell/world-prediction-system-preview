@@ -36,6 +36,29 @@ button {
   grid-template-rows: minmax(360px, 56vh) minmax(390px, 44vh);
 }
 
+.mobile-learning-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line);
+  background: #0b1513;
+}
+.mobile-learning-status > div {
+  min-width: 0;
+  padding: 8px 12px;
+  border-right: 1px solid var(--line);
+}
+.mobile-learning-status > div:last-child { border-right: 0; }
+.mobile-learning-status span,
+.mobile-learning-status strong { display: block; overflow-wrap: anywhere; }
+.mobile-learning-status span { color: var(--muted); font-size: 9px; font-weight: 800; }
+.mobile-learning-status strong { margin-top: 2px; color: var(--text); font-size: 12px; }
+.mobile-learning-status.live { border-left: 4px solid var(--green); }
+.mobile-learning-status.warning { border-left: 4px solid var(--amber); }
+.mobile-learning-status.critical { border-left: 4px solid var(--red); }
+.mobile-learning-status.live > div:first-child strong { color: var(--green); }
+.mobile-learning-status.warning > div:first-child strong { color: var(--amber); }
+.mobile-learning-status.critical > div:first-child strong { color: var(--red); }
+
 .globe-section {
   position: relative;
   overflow: hidden;
@@ -108,6 +131,12 @@ button {
 .map-live-fx.stale .map-live-fx-head strong { color: var(--amber); }
 
 @media (max-width: 680px) {
+  .mobile-learning-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mobile-learning-status > div { min-height: 56px; padding: 9px 10px; }
+  .mobile-learning-status > div:nth-child(2) { border-right: 0; }
+  .mobile-learning-status > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .mobile-learning-status span { font-size: 11px; }
+  .mobile-learning-status strong { font-size: 14px; }
   .map-live-fx { right: 8px; bottom: 8px; width: min(310px, calc(100% - 16px)); }
   .map-live-fx-quotes strong { font-size: 21px; }
   .map-live-fx-quotes small { font-size: 10px; }
@@ -6044,13 +6073,20 @@ body.design-command .shell {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: 50px auto auto;
+  grid-template-rows: 50px auto auto auto;
   align-items: start;
+}
+
+.mobile-learning-status {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  position: relative;
+  z-index: 21;
 }
 
 .paper-position-bar {
   grid-column: 1 / -1;
-  grid-row: 2;
+  grid-row: 3;
   min-height: 62px;
   display: grid;
   grid-template-columns: minmax(185px, .8fr) minmax(0, 4fr) auto;
@@ -6104,7 +6140,7 @@ body.design-command .shell {
 
 .globe-section {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 4;
   width: 100%;
   height: min(860px, calc(100vh - 112px));
   min-height: 720px;
@@ -6114,7 +6150,7 @@ body.design-command .shell {
 
 .left-rail {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 4;
   min-width: 0;
   align-self: start;
   border-right: 1px solid var(--line);
@@ -6355,7 +6391,7 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
 .dashboard,
 body.design-command .dashboard {
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 4;
   min-width: 0;
   overflow: visible;
   border-top: 0;
@@ -6366,14 +6402,15 @@ body.design-command .dashboard {
   .shell,
   body.design-command .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 50px auto auto auto;
+    grid-template-rows: 50px auto auto auto auto;
   }
 
   .forecast-newsflash { grid-column: 1; grid-row: 1; }
-  .paper-position-bar { grid-column: 1; grid-row: 2; }
+  .mobile-learning-status { grid-column: 1; grid-row: 2; }
+  .paper-position-bar { grid-column: 1; grid-row: 3; }
   .left-rail {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 4;
     border-right: 0;
   }
   .globe-section {
@@ -6385,7 +6422,7 @@ body.design-command .dashboard {
   .dashboard,
   body.design-command .dashboard {
     grid-column: 1;
-    grid-row: 4;
+    grid-row: 5;
     border-left: 0;
     border-top: 1px solid var(--line);
   }
@@ -6565,7 +6602,7 @@ body.design-command .dashboard {
 @media (max-width: 680px) {
   .shell,
   body.design-command .shell {
-    grid-template-rows: 46px auto auto auto;
+    grid-template-rows: 46px auto auto auto auto;
   }
 
   .paper-position-bar { min-height: 154px; grid-template-columns: 1fr auto; grid-template-rows: auto auto; }

@@ -18,6 +18,11 @@ const historyEl = document.getElementById("history");
 const historyCountEl = document.getElementById("history-count");
 const updatedAtEl = document.getElementById("updated-at");
 const feedStatusEl = document.getElementById("feed-status");
+const mobileLearningStatusEl = document.getElementById("mobile-learning-status");
+const mobileDataFreshnessEl = document.getElementById("mobile-data-freshness");
+const mobileAnalysisTimeEl = document.getElementById("mobile-analysis-time");
+const mobileLedgerStatusEl = document.getElementById("mobile-ledger-status");
+const mobileNextLearningEl = document.getElementById("mobile-next-learning");
 const riskValueEl = document.getElementById("risk-value");
 const riskMeterEl = document.getElementById("risk-meter");
 const refreshButton = document.getElementById("refresh");
@@ -2924,6 +2929,47 @@ function renderAiImprovement(improvement, factorAllocator) {
   `;
 }
 
+function nextDailyLearningAt(now = new Date()) {
+  const next = new Date(now);
+  next.setUTCHours(3, 17, 0, 0);
+  if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
+function renderMobileLearningStatus(snapshot) {
+  if (!mobileLearningStatusEl) return;
+  const generatedAt = new Date(snapshot?.generatedAt || 0);
+  const valid = Number.isFinite(generatedAt.getTime());
+  const ageMinutes = valid ? Math.max(0, Math.floor((Date.now() - generatedAt.getTime()) / 60_000)) : Infinity;
+  const warningMinutes = STATIC_PREVIEW_MODE ? 24 * 60 : 5;
+  const criticalMinutes = STATIC_PREVIEW_MODE ? 48 * 60 : 20;
+  const tone = ageMinutes >= criticalMinutes ? "critical" : ageMinutes >= warningMinutes ? "warning" : "live";
+  mobileLearningStatusEl.className = `mobile-learning-status ${tone}`;
+  mobileDataFreshnessEl.textContent = !valid ? "時刻不明"
+    : ageMinutes < 1 ? "1分以内"
+      : ageMinutes < 60 ? `${ageMinutes}分前`
+        : `${Math.floor(ageMinutes / 60)}時間前`;
+  mobileAnalysisTimeEl.textContent = valid
+    ? generatedAt.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "--";
+  const allocator = snapshot?.context?.fxCausalModel?.fourHourFactorAllocator;
+  mobileLedgerStatusEl.textContent = allocator?.continuity?.ledgerVersion
+    ? `${allocator.continuity.storedSamples || 0}標本 / ${allocator.continuity.storedModels || 0}モデル`
+    : "台帳準備中";
+  if (STATIC_PREVIEW_MODE) {
+    mobileNextLearningEl.textContent = nextDailyLearningAt().toLocaleString("ja-JP", {
+      month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  } else {
+    const intervalMinutes = Number(snapshot?.backgroundLearning?.intervalMinutes || 30);
+    const lastAt = Date.parse(snapshot?.backgroundLearning?.lastSuccessAt || snapshot?.generatedAt || 0);
+    const nextAt = Number.isFinite(lastAt) ? new Date(lastAt + intervalMinutes * 60_000) : null;
+    mobileNextLearningEl.textContent = nextAt
+      ? nextAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+      : `${intervalMinutes}分周期`;
+  }
+}
+
 function renderFearGreed(fearGreed) {
   if (!fearGreed) return;
   const score = Number(fearGreed.score || 0);
@@ -4218,6 +4264,7 @@ async function loadSnapshot(forceFull = false) {
       };
     }
     const snapshot = latestSnapshot;
+    renderMobileLearningStatus(snapshot);
     renderMarketTape(snapshot.markets);
     renderMapLiveFx(snapshot.markets, snapshot.generatedAt);
     renderMarkets(snapshot.markets);

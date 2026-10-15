@@ -3798,6 +3798,11 @@ function renderFundamentalNews(data) {
       <div><span>伝播・相反監視</span><strong>${data.propagationAlerts || 0} / ${data.conflictingClusters || 0}</strong><small>急速伝播 / 相反イベント</small></div>
       <div><span>15分・60分照合</span><strong>${data.hitRate15m == null ? "蓄積中" : `${(data.hitRate15m * 100).toFixed(1)}%`}</strong><small>15分 ${data.evaluated15m || 0}件 / 60分 ${data.evaluated60m || 0}件</small></div>
     </div>
+    <div class="persistent-theme-grid">${(data.persistentThemes || []).slice(0, 4).map((theme) => `<article class="${Number(theme.bias || 0) > 0 ? "up" : Number(theme.bias || 0) < 0 ? "down" : "flat"}">
+      <div><span>継続テーマ</span><time>${formatTime(theme.lastSeenAt)}</time></div>
+      <strong>${theme.label}</strong>
+      <small>${theme.marketConfirmation || "市場反応待ち"} / 独立${theme.independentSources || 0}源 / 方向 ${signedNumber(theme.bias, 3)}</small>
+    </article>`).join("") || `<div class="fundamental-news-empty">有効な継続政策テーマはありません。</div>`}</div>
     <div class="news-propagation-grid">${(data.topClusters || []).slice(0, 6).map((cluster) => `<a href="${cluster.url}" target="_blank" rel="noreferrer" class="${cluster.urgency || "watch"}">
       <div><span>${cluster.institution} / ${cluster.category}</span><time>${formatTime(cluster.firstSeenAt)}</time></div>
       <strong>${cluster.title}</strong>

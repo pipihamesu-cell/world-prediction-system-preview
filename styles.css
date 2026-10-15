@@ -5007,6 +5007,14 @@ body.design-command .finance-hotspots { background: #091117; }
 .fundamental-news-summary strong { margin: 4px 0; color: var(--text); font-size: 14px; }
 .fundamental-news-summary strong.up { color: var(--green); }
 .fundamental-news-summary strong.down { color: #f08b82; }
+.persistent-theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid rgba(97, 216, 255, 0.14); background: rgba(240, 184, 79, 0.025); }
+.persistent-theme-grid > article { min-width: 0; padding: 10px; border-right: 1px solid rgba(97, 216, 255, 0.08); border-bottom: 1px solid rgba(97, 216, 255, 0.08); }
+.persistent-theme-grid > article.up { box-shadow: inset 3px 0 0 var(--green); }
+.persistent-theme-grid > article.down { box-shadow: inset 3px 0 0 var(--red); }
+.persistent-theme-grid > article > div { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 9px; }
+.persistent-theme-grid strong, .persistent-theme-grid small { display: block; }
+.persistent-theme-grid strong { margin: 5px 0; color: var(--text); font-size: 11px; line-height: 1.4; }
+.persistent-theme-grid small { color: var(--muted); font-size: 9px; line-height: 1.4; }
 .fundamental-news-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid rgba(97, 216, 255, 0.12); }
 .fundamental-news-list > a { min-width: 0; padding: 10px; border-right: 1px solid rgba(97, 216, 255, 0.08); border-bottom: 1px solid rgba(97, 216, 255, 0.08); color: inherit; text-decoration: none; }
 .fundamental-news-list > a.critical { border-left: 3px solid #f08b82; }
@@ -5084,7 +5092,7 @@ body.design-command .finance-hotspots { background: #091117; }
   .paper-entry-policy-grid { grid-template-columns: 1fr 1fr; }
   .paper-regime-policy-grid { grid-template-columns: 1fr 1fr; }
   .paper-historical-summary { grid-template-columns: 1fr 1fr; }
-  .fundamental-news-summary, .fundamental-news-list, .news-propagation-grid { grid-template-columns: 1fr; }
+  .fundamental-news-summary, .persistent-theme-grid, .fundamental-news-list, .news-propagation-grid { grid-template-columns: 1fr; }
   .paper-account-grid > div { border-bottom: 1px solid rgba(218, 233, 224, 0.08); }
   .paper-account-grid > div:nth-child(2n) { border-right: 0; }
   .paper-account-grid > div:last-child { grid-column: 1 / -1; border-bottom: 0; }
@@ -6314,7 +6322,7 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
 }
 .left-intelligence-columns .central-bank-grid { grid-template-columns: 1fr; }
 .left-intelligence-columns .fundamental-news-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
-.left-intelligence-columns :is(.fundamental-news-list,.news-propagation-grid) { grid-template-columns: 1fr; }
+.left-intelligence-columns :is(.persistent-theme-grid,.fundamental-news-list,.news-propagation-grid) { grid-template-columns: 1fr; }
 .left-intelligence-columns .swing-main { grid-template-columns: 1fr; }
 .left-intelligence-columns :is(.swing-map,.swing-priorities) { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .left-intelligence-columns :is(.currency-strength-summary,.currency-horizon-grid) { grid-template-columns: repeat(2,minmax(0,1fr)); }

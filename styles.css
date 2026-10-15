@@ -4999,7 +4999,7 @@ body.design-command .finance-hotspots { background: #091117; }
 .fundamental-news-head span { color: var(--text); font-weight: 800; }
 .fundamental-news-head small { margin-top: 2px; color: var(--muted); font-size: 9px; }
 .fundamental-news-head strong { color: var(--cyan); font-size: 11px; text-align: right; }
-.fundamental-news-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fundamental-news-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
 .fundamental-news-summary > div { min-width: 0; padding: 10px; border-right: 1px solid rgba(97, 216, 255, 0.1); }
 .fundamental-news-summary > div:last-child { border-right: 0; }
 .fundamental-news-summary span, .fundamental-news-summary strong, .fundamental-news-summary small { display: block; }

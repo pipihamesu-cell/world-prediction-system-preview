@@ -2480,7 +2480,7 @@ function renderChampionChallenger(data) {
     </div>
     <div class="cc-sample-audit">
       <div><span>昇格審査</span><strong>${eligible.samples || 0}件</strong><small>必要 ${data.minimumSamples || 120}件</small></div>
-      <div><span>方向評価</span><strong>${eligible.directionSamples || 0}件</strong><small>必要 ${data.minimumDirectionSamples || 80}件</small></div>
+      <div><span>候補方向評価</span><strong>${eligible.directionSamples || 0}件</strong><small>必要 ${data.minimumDirectionSamples || 80}件 / 現行 ${eligible.championDirectionSamples || 0}件</small></div>
       <div><span>旧形式除外</span><strong>${data.dataAudit?.excludedLegacyRows || 0}件</strong><small>参考値のみ</small></div>
       <div><span>期限時刻ずれ除外</span><strong>${data.dataAudit?.excludedMisalignedRows || 0}件</strong><small>期限±3分を超過</small></div>
       <div><span>重複除外</span><strong>${overlappingRowsRemoved || 0}件</strong><small>10分予測の期間重複</small></div>
@@ -2491,9 +2491,11 @@ function renderChampionChallenger(data) {
     <div class="cc-metrics">
       <div class="cc-metric-head"><span>評価指標</span><strong>現行</strong><strong>既存候補</strong><strong>局面別候補</strong><small>既存 / 局面別 95%区間</small></div>
       <div><span>方向一致率</span><strong>${formatRate(champion.directionHitRate)}</strong><strong>${formatRate(challenger.directionHitRate)}</strong><strong>${formatRate(regimeChallenger.directionHitRate)}</strong><small>${interval(uncertainty.directionHitRate, 100, 1)}pt / ${interval(regimeUncertainty.directionHitRate, 100, 1)}pt</small></div>
+      <div><span>方向網羅率</span><strong>${formatRate(champion.directionCoverage)}</strong><strong>${formatRate(challenger.directionCoverage)}</strong><strong>${formatRate(regimeChallenger.directionCoverage)}</strong><small>見送りを除く方向シグナルの比率</small></div>
       <div><span>Brierスコア</span><strong>${formatNumber(champion.brierScore, 4)}</strong><strong>${formatNumber(challenger.brierScore, 4)}</strong><strong>${formatNumber(regimeChallenger.brierScore, 4)}</strong><small>${interval(uncertainty.brierImprovement, 1, 4)} / ${interval(regimeUncertainty.brierImprovement, 1, 4)}</small></div>
       <div><span>MAE</span><strong>${formatNumber(champion.maePct, 4)}%</strong><strong>${formatNumber(challenger.maePct, 4)}%</strong><strong>${formatNumber(regimeChallenger.maePct, 4)}%</strong><small>${interval(uncertainty.maeImprovement, 1, 4)} / ${interval(regimeUncertainty.maeImprovement, 1, 4)}</small></div>
-      <div><span>コスト控除後/回</span><strong>${formatNumber(champion.netReturnPctPerSignal, 4)}%</strong><strong>${formatNumber(challenger.netReturnPctPerSignal, 4)}%</strong><strong>${formatNumber(regimeChallenger.netReturnPctPerSignal, 4)}%</strong><small>${interval(uncertainty.netReturnPctPerSignal, 1, 4)} / ${interval(regimeUncertainty.netReturnPctPerSignal, 1, 4)}pt</small></div>
+      <div><span>コスト控除後/信号</span><strong>${formatNumber(champion.netReturnPctPerSignal, 4)}%</strong><strong>${formatNumber(challenger.netReturnPctPerSignal, 4)}%</strong><strong>${formatNumber(regimeChallenger.netReturnPctPerSignal, 4)}%</strong><small>${interval(uncertainty.netReturnPctPerSignal, 1, 4)} / ${interval(regimeUncertainty.netReturnPctPerSignal, 1, 4)}pt</small></div>
+      <div><span>コスト控除後/機会</span><strong>${formatNumber(champion.netReturnPctPerOpportunity, 4)}%</strong><strong>${formatNumber(challenger.netReturnPctPerOpportunity, 4)}%</strong><strong>${formatNumber(regimeChallenger.netReturnPctPerOpportunity, 4)}%</strong><small>${interval(uncertainty.netReturnPctPerOpportunity, 1, 4)} / ${interval(regimeUncertainty.netReturnPctPerOpportunity, 1, 4)}pt</small></div>
     </div>
     <div class="cc-rules">
       <span class="${data.promotionGates?.challenger?.canPromote ? "ok" : "ng"}">既存候補: ${data.promotionGates?.challenger?.canPromote ? "採用可" : "採用不可"}</span>
@@ -3791,12 +3793,20 @@ function renderFundamentalNews(data) {
   fundamentalNewsPanelEl.className = `fundamental-news-wrap ${tone}`;
   fundamentalNewsStatusEl.textContent = `${data.clusters24h || 0}出来事 / 独立伝播 ${data.propagationAlerts || 0}件 / 15分照合 ${data.evaluated15m || 0}件`;
   const biasLabel = bias > 0.08 ? "EUR優位" : bias < -0.08 ? "USD優位" : "中立・判定待ち";
+  const confluence = data.confluenceValidation || {};
+  const liveConfluenceGate = data.confluenceGate || {};
+  const multi = confluence.bands?.multi || {};
+  const thresholdValidation = confluence.confirmationThresholdValidation || {};
+  const counterfactualSlice = data.confluenceCounterfactual?.currentSlice || {};
+  const counterfactual = counterfactualSlice.recentWindow || counterfactualSlice || data.confluenceCounterfactual?.overall || {};
   fundamentalNewsEl.innerHTML = `
     <div class="fundamental-news-summary">
       <div><span>24時間の出来事</span><strong>${data.clusters24h || 0}件</strong><small>記事 ${data.recent24h || 0}件 / 重複統合 ${data.duplicateArticles24h || 0}件</small></div>
       <div><span>EUR/USD速報方向</span><strong class="${tone}">${biasLabel}</strong><small>方向スコア ${signedNumber(bias, 3)}</small></div>
       <div><span>伝播・相反監視</span><strong>${data.propagationAlerts || 0} / ${data.conflictingClusters || 0}</strong><small>急速伝播 / 相反イベント</small></div>
       <div><span>15分・60分照合</span><strong>${data.hitRate15m == null ? "蓄積中" : `${(data.hitRate15m * 100).toFixed(1)}%`}</strong><small>15分 ${data.evaluated15m || 0}件 / 60分 ${data.evaluated60m || 0}件</small></div>
+      <div><span>材料×市場要因</span><strong class="${liveConfluenceGate.counterfactualReleased ? "down" : confluence.promotionEligible ? "up" : confluence.autoReverted ? "down" : ""}">${liveConfluenceGate.counterfactualReleased ? "利益逸失確認で停止" : confluence.promotionEligible ? "昇格適用中" : confluence.autoReverted ? "自動復帰" : "影検証中"}</strong><small>${liveConfluenceGate.counterfactualReleased ? liveConfluenceGate.label : `${liveConfluenceGate.segmentLabel || "速報一般"}・${liveConfluenceGate.directionLabel || "方向判定中"} / 採用 ${thresholdValidation.recommendedConfirmations || 2}要因 / 三分割${thresholdValidation.adoptionEligible ? "合格" : "検証中"}`}</small></div>
+      <div><span>直近30件の見送り効果</span><strong class="${counterfactual.beneficialConfirmed ? "up" : counterfactual.harmfulConfirmed ? "down" : ""}">${counterfactual.verdict || "効果検証中 0/20件"}</strong><small>防げた損失 ${counterfactual.avoidedLosses || 0}件 / 逃した利益 ${counterfactual.missedProfits || 0}件 / 純効果 ${signedYen(counterfactual.netGuardBenefitJpy || 0)}${counterfactualSlice.relationshipShift !== "stable-or-unconfirmed" ? ` / ${counterfactualSlice.relationshipShiftLabel}` : ""}</small></div>
     </div>
     <div class="persistent-theme-grid">${(data.persistentThemes || []).slice(0, 4).map((theme) => `<article class="${Number(theme.bias || 0) > 0 ? "up" : Number(theme.bias || 0) < 0 ? "down" : "flat"}">
       <div><span>継続テーマ</span><time>${formatTime(theme.lastSeenAt)}</time></div>

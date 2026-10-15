@@ -2816,6 +2816,7 @@ function renderAiImprovement(improvement, factorAllocator) {
         <span>4時間 要因別適応システム</span>
         <strong>${factorAllocator?.modelVersion || "現行モデル確認中"} / ${factorProgress}独立標本</strong>
       </div>
+      <small class="factor-adaptation-policy">継続台帳 ${factorAllocator?.continuity?.storedSamples || 0}標本 / ${factorAllocator?.continuity?.storedModels || 0}モデル / ${factorAllocator?.continuity?.updatedAt ? formatTime(factorAllocator.continuity.updatedAt) : "保存待ち"}</small>
       <div class="factor-adaptation-grid">
         ${factorRows.map((factor) => {
           const multiplier = Number(factor.multiplier || 1);

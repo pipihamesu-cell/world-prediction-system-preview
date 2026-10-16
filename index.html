@@ -11,6 +11,17 @@
   </head>
   <body>
     <main class="shell">
+      <section id="pair-decision-deck" class="pair-decision-deck syncing" aria-label="EUR/USD・USD/JPY 現在予測" aria-live="polite">
+        <div class="pair-decision-heading">
+          <span>AI CURRENT BIAS</span>
+          <strong>現在の売買判断</strong>
+          <small id="pair-decision-updated">最新分析を同期中</small>
+        </div>
+        <div id="pair-decision-cards" class="pair-decision-cards">
+          <a class="pair-decision-card waiting" href="#eurusd-pivot-panel"><span>EUR/USD</span><strong>判定中</strong><small>予測を同期しています</small></a>
+          <a class="pair-decision-card waiting" href="#usdjpy-pivot-panel"><span>USD/JPY</span><strong>判定中</strong><small>予測を同期しています</small></a>
+        </div>
+      </section>
       <section class="forecast-newsflash" aria-label="EUR/USD現在予測速報">
         <div class="forecast-newsflash-label">
           <i></i>
@@ -38,6 +49,7 @@
         </div>
         <div class="paper-position-jump">詳細を見る <b aria-hidden="true">›</b></div>
       </a>
+      <section id="full-width-chart-stack" class="full-width-chart-stack" aria-label="EUR/USD・USD/JPY 全幅チャート"></section>
       <div class="left-rail">
       <section class="globe-section" aria-label="&#12527;&#12540;&#12523;&#12489;&#12514;&#12491;&#12479;&#12540;">
         <div id="globe"></div>
@@ -663,6 +675,6 @@
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="./app.js?v=157"></script>
+    <script src="./app.js?v=158"></script>
   </body>
 </html>

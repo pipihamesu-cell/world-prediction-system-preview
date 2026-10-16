@@ -1,4 +1,4 @@
-const CACHE_NAME = "world-prediction-system-v157";
+const CACHE_NAME = "world-prediction-system-v158";
 const APP_SHELL = [
   "/",
   "/index.html",

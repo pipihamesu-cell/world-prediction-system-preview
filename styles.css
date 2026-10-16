@@ -5981,6 +5981,144 @@ body.design-command .price { font-family: ui-monospace, Consolas, monospace; }
   }
 }
 
+/* Top-level two-pair decision deck and uninterrupted full-width charts. */
+.pair-decision-deck {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  border-bottom: 1px solid rgba(97, 216, 255, 0.36);
+  background: #03090d;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+  position: relative;
+  z-index: 30;
+}
+
+.pair-decision-heading {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 13px 16px;
+  border-right: 1px solid rgba(97, 216, 255, 0.24);
+  background: #071720;
+}
+.pair-decision-heading span { color: var(--cyan); font: 800 10px ui-monospace, Consolas, monospace; }
+.pair-decision-heading strong { color: #f5fbfc; font-size: 17px; }
+.pair-decision-heading small { color: #8da2aa; font-size: 10px; }
+.pair-decision-cards { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pair-decision-card {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: minmax(94px, .72fr) minmax(120px, .9fr) minmax(150px, 1.25fr) minmax(155px, 1.2fr);
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  gap: 0 12px;
+  padding: 11px 14px 8px;
+  color: var(--text);
+  text-decoration: none;
+  border-left: 4px solid #708188;
+  background: #071015;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.pair-decision-card + .pair-decision-card { border-top: 0; border-left-width: 5px; box-shadow: inset 1px 0 rgba(218, 233, 224, .12); }
+.pair-decision-card:hover { background: #0a1820; }
+.pair-decision-card.buy { border-left-color: #ff4d57; background: linear-gradient(90deg, rgba(255, 77, 87, .11), #071015 34%); }
+.pair-decision-card.sell { border-left-color: #3aa7ff; background: linear-gradient(90deg, rgba(58, 167, 255, .12), #071015 34%); }
+.pair-decision-card.waiting { border-left-color: #7e9198; }
+.pair-decision-symbol, .pair-decision-price { min-width: 0; display: grid; gap: 3px; }
+.pair-decision-symbol span { color: #f3f8fa; font: 900 18px ui-monospace, Consolas, monospace; }
+.pair-decision-symbol small, .pair-decision-price span { color: #8ea3aa; font-size: 9px; font-weight: 800; }
+.pair-decision-action { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 6px; }
+.pair-decision-action b { grid-row: span 2; color: #87999f; font-size: 32px; line-height: 1; }
+.pair-decision-action strong { color: #cfdadd; font-size: 27px; line-height: 1; }
+.pair-decision-action strong { white-space: nowrap; }
+.pair-decision-action em { color: #94a6ac; font-size: 10px; font-style: normal; font-weight: 800; }
+.pair-decision-card.buy .pair-decision-action :is(b, strong) { color: #ff5962; }
+.pair-decision-card.sell .pair-decision-action :is(b, strong) { color: #4bb0ff; }
+.pair-decision-price strong { overflow: hidden; color: #f4fbfd; font: 900 22px ui-monospace, Consolas, monospace; text-overflow: ellipsis; }
+.pair-decision-price small { overflow: hidden; color: #a8bac0; font: 700 10px ui-monospace, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.pair-decision-horizons { min-width: 0; display: grid; gap: 5px; }
+.pair-decision-horizons span { display: flex; justify-content: space-between; gap: 8px; color: #84999f; font-size: 10px; }
+.pair-decision-horizons b { overflow: hidden; color: #e0eaed; text-overflow: ellipsis; white-space: nowrap; }
+.pair-decision-freshness { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding-top: 5px; color: #7f949b; font-size: 9px; border-top: 1px solid rgba(218, 233, 224, .08); }
+.pair-decision-freshness i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); }
+
+.full-width-chart-stack {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(97, 216, 255, .28);
+  background: #050b0f;
+}
+.full-width-chart-stack > .eurusd-pivot-wrap { width: 100%; min-width: 0; margin: 0; }
+.full-width-chart-stack .eurusd-pivot-chart { height: 520px; }
+
+.shell,
+body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto; }
+.forecast-newsflash { grid-row: 2; }
+.mobile-learning-status { grid-row: 3; }
+.paper-position-bar { grid-row: 4; }
+.left-rail { grid-row: 6; }
+.dashboard,
+body.design-command .dashboard { grid-row: 6; }
+
+@media (max-width: 1280px) and (min-width: 901px) {
+  .pair-decision-deck { grid-template-columns: 150px minmax(0, 1fr); }
+  .pair-decision-card { grid-template-columns: 92px 105px minmax(130px, 1fr); }
+  .pair-decision-horizons { display: none; }
+}
+
+@media (max-width: 900px) {
+  .shell,
+  body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto; }
+  .pair-decision-deck { grid-row: 1; }
+  .forecast-newsflash { grid-row: 2; }
+  .mobile-learning-status { grid-row: 3; }
+  .paper-position-bar { grid-row: 4; }
+  .full-width-chart-stack { grid-row: 5; }
+  .left-rail { grid-row: 6; }
+  .dashboard,
+  body.design-command .dashboard { grid-row: 7; }
+  .full-width-chart-stack .eurusd-pivot-chart { height: 420px; }
+}
+
+@media (max-width: 680px) {
+  .shell,
+  body.design-command .shell { grid-template-rows: auto 46px auto auto auto auto auto; }
+  .pair-decision-deck { grid-template-columns: minmax(0, 1fr); }
+  .pair-decision-heading { min-height: 42px; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 7px 10px; border-right: 0; border-bottom: 1px solid rgba(97, 216, 255, .2); }
+  .pair-decision-heading span { font-size: 9px; }
+  .pair-decision-heading strong { font-size: 14px; }
+  .pair-decision-heading small { text-align: right; }
+  .pair-decision-card { min-height: 128px; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; gap: 5px 8px; padding: 9px 9px 7px; }
+  .pair-decision-card + .pair-decision-card { box-shadow: inset 1px 0 rgba(218, 233, 224, .12); }
+  .pair-decision-symbol span { font-size: 15px; }
+  .pair-decision-action { justify-self: end; }
+  .pair-decision-action b { font-size: 25px; }
+  .pair-decision-action strong { font-size: 22px; }
+  .pair-decision-price strong { font-size: 19px; }
+  .pair-decision-price small { font-size: 9px; }
+  .pair-decision-horizons { gap: 3px; }
+  .pair-decision-horizons span { font-size: 9px; }
+  .pair-decision-freshness { grid-column: 1 / -1; padding-top: 4px; }
+  .full-width-chart-stack { gap: 10px; padding: 9px; }
+  .full-width-chart-stack .eurusd-pivot-chart { height: 350px; }
+}
+
+@media (max-width: 390px) {
+  .pair-decision-heading span { display: none; }
+  .pair-decision-heading { grid-template-columns: 1fr auto; }
+  .pair-decision-card { padding-inline: 7px; }
+  .pair-decision-action strong { font-size: 20px; }
+  .pair-decision-horizons span { display: grid; gap: 1px; }
+}
+
 /* Split command layout with a page-level EUR/USD forecast newsflash. */
 .forecast-newsflash {
   grid-column: 1 / -1;
@@ -7057,4 +7195,36 @@ body.compact-operations .market-grid { grid-template-columns: repeat(2, minmax(0
 @media (max-width: 680px) {
   body.compact-operations .market-grid { grid-template-columns: 1fr; }
   .design-compare #detail-mode-toggle { min-width: 78px; }
+}
+
+/* Keep the decision deck first and both pivot charts on uninterrupted rows. */
+.shell,
+body.design-command .shell {
+  grid-template-rows: auto 50px auto auto auto auto;
+}
+.pair-decision-deck { grid-column: 1 / -1; grid-row: 1; }
+.forecast-newsflash { grid-column: 1 / -1; grid-row: 2; }
+.mobile-learning-status { grid-column: 1 / -1; grid-row: 3; }
+.paper-position-bar { grid-column: 1 / -1; grid-row: 4; }
+.full-width-chart-stack { grid-column: 1 / -1; grid-row: 5; }
+.left-rail { grid-column: 1; grid-row: 6; }
+.dashboard,
+body.design-command .dashboard { grid-column: 2; grid-row: 6; }
+
+@media (max-width: 900px) {
+  .shell,
+  body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto; }
+  .pair-decision-deck { grid-row: 1; }
+  .forecast-newsflash { grid-row: 2; }
+  .mobile-learning-status { grid-row: 3; }
+  .paper-position-bar { grid-row: 4; }
+  .full-width-chart-stack { grid-row: 5; }
+  .left-rail { grid-column: 1; grid-row: 6; }
+  .dashboard,
+  body.design-command .dashboard { grid-column: 1; grid-row: 7; }
+}
+
+@media (max-width: 680px) {
+  .shell,
+  body.design-command .shell { grid-template-rows: auto 46px auto auto auto auto auto; }
 }

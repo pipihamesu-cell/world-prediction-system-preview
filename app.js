@@ -183,6 +183,10 @@ const flowCountEl = document.getElementById("flow-count");
 const flowExplanationEl = document.getElementById("flow-explanation");
 const marketTapeEl = document.getElementById("market-tape");
 const forecastNewsflashTrackEl = document.getElementById("forecast-newsflash-track");
+const pairDecisionDeckEl = document.getElementById("pair-decision-deck");
+const pairDecisionCardsEl = document.getElementById("pair-decision-cards");
+const pairDecisionUpdatedEl = document.getElementById("pair-decision-updated");
+const fullWidthChartStackEl = document.getElementById("full-width-chart-stack");
 const paperPositionBarEl = document.getElementById("paper-position-bar");
 const paperPositionStateEl = document.getElementById("paper-position-state");
 const paperPositionSummaryEl = document.getElementById("paper-position-summary");
@@ -212,6 +216,14 @@ let soundscapeMode = "off";
 let soundPreviewTimers = [];
 let soundPreviewActive = false;
 
+function initFullWidthCharts() {
+  if (!fullWidthChartStackEl) return;
+  const eurusdPanel = document.getElementById("eurusd-pivot-panel");
+  const usdjpyPanel = document.getElementById("usdjpy-pivot-panel");
+  if (eurusdPanel) fullWidthChartStackEl.appendChild(eurusdPanel);
+  if (usdjpyPanel) fullWidthChartStackEl.appendChild(usdjpyPanel);
+}
+
 function initResponsiveIntelligenceRail() {
   if (!leftIntelligenceStackEl) return;
   const selectors = [
@@ -226,8 +238,6 @@ function initResponsiveIntelligenceRail() {
     [".options-wrap", "right"],
     [".swing-compass-wrap", "left"],
     [".currency-strength-wrap", "left"],
-    [".eurusd-pivot-wrap", "wide"],
-    ["#usdjpy-pivot-panel", "wide"],
     [".eurusd-timeframes-wrap", "wide"],
     [".ai-improvement-wrap", "left"],
     [".trade-opportunity-wrap", "wide"],
@@ -2236,6 +2246,71 @@ function renderForecastNewsflash(items, eurusdMarket) {
     <div class="forecast-newsflash-group">${content}</div>
     <div class="forecast-newsflash-group" aria-hidden="true">${content}</div>
   `;
+}
+
+function renderPairDecisionDeck(snapshot) {
+  if (!pairDecisionDeckEl || !pairDecisionCardsEl) return;
+  const markets = snapshot?.markets || [];
+  const eurusdMarket = markets.find((market) => market.id === "eurusd");
+  const usdjpyMarket = markets.find((market) => market.id === "usdjpy");
+  const eurusdCommand = snapshot?.eurusdCommand || {};
+  const yenCommand = snapshot?.yenCrossCommand || {};
+  const usdjpy = yenCommand.activePair || {};
+  const eurusdFrames = snapshot?.eurusdTimeframes || [];
+  const usdjpyFrames = yenCommand.timeframes || [];
+  const findFrame = (items, key) => items.find((item) => item.key === key);
+  const direction = (value) => value === "up" ? "buy" : value === "down" ? "sell" : "waiting";
+  const action = (value) => value === "up" ? "買い" : value === "down" ? "売り" : "見送り";
+  const arrow = (value) => value === "up" ? "↑" : value === "down" ? "↓" : "→";
+  const horizon = (item) => item ? `${arrow(item.direction)} ${action(item.direction)} ${Math.round(Number(item.calibratedProbability ?? item.confidence ?? 0.5) * 100)}%` : "確認中";
+  const price = (value, digits) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value).toFixed(digits) : "--";
+  const eurusdDirection = eurusdCommand.stanceTone || eurusdMarket?.forecast?.direction || "flat";
+  const usdjpyDirection = usdjpy.direction || "flat";
+  const eurusdConfidence = Number(eurusdCommand.confidence?.score || Number(eurusdMarket?.forecast?.confidence || 0) * 100);
+  const usdjpyConfidence = Number(usdjpy.confidence || usdjpyMarket?.forecast?.confidence || 0) * 100;
+  const cards = [
+    {
+      id: "eurusd",
+      label: "EUR/USD",
+      direction: eurusdDirection,
+      current: eurusdMarket?.quote?.value ?? eurusdMarket?.forecast?.current,
+      predicted: eurusdMarket?.forecast?.predicted,
+      deltaPct: eurusdMarket?.forecast?.deltaPct,
+      confidence: eurusdConfidence,
+      fresh: eurusdMarket?.quote?.freshnessSeconds,
+      h4: findFrame(eurusdFrames, "h4"),
+      d1: findFrame(eurusdFrames, "d1"),
+      digits: 5
+    },
+    {
+      id: "usdjpy",
+      label: "USD/JPY",
+      direction: usdjpyDirection,
+      current: usdjpy.current ?? usdjpyMarket?.quote?.value,
+      predicted: usdjpy.predicted ?? usdjpyMarket?.forecast?.predicted,
+      deltaPct: usdjpy.deltaPct ?? usdjpyMarket?.forecast?.deltaPct,
+      confidence: usdjpyConfidence,
+      fresh: usdjpy.freshnessSeconds ?? usdjpyMarket?.quote?.freshnessSeconds,
+      h4: findFrame(usdjpyFrames, "h4"),
+      d1: findFrame(usdjpyFrames, "d1"),
+      digits: 3
+    }
+  ];
+  pairDecisionDeckEl.className = "pair-decision-deck live";
+  pairDecisionCardsEl.innerHTML = cards.map((card) => {
+    const tone = direction(card.direction);
+    const delta = Number(card.deltaPct || 0);
+    return `<a class="pair-decision-card ${tone}" href="#${card.id}-pivot-panel" aria-label="${card.label} ${action(card.direction)}">
+      <div class="pair-decision-symbol"><span>${card.label}</span><small>現在予測</small></div>
+      <div class="pair-decision-action"><b>${arrow(card.direction)}</b><strong>${action(card.direction)}</strong><em>信頼 ${Math.round(card.confidence || 0)}%</em></div>
+      <div class="pair-decision-price"><span>現在値</span><strong>${price(card.current, card.digits)}</strong><small>10分 ${price(card.predicted, card.digits)} / ${delta >= 0 ? "+" : ""}${delta.toFixed(4)}%</small></div>
+      <div class="pair-decision-horizons"><span>4時間 <b>${horizon(card.h4)}</b></span><span>日足 <b>${horizon(card.d1)}</b></span></div>
+      <div class="pair-decision-freshness"><i></i>${Number.isFinite(Number(card.fresh)) ? `価格 ${Math.round(Number(card.fresh))}秒前` : "価格時刻を確認中"}</div>
+    </a>`;
+  }).join("");
+  if (pairDecisionUpdatedEl) {
+    pairDecisionUpdatedEl.textContent = `分析 ${new Date(snapshot?.generatedAt || Date.now()).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  }
 }
 
 function timeframeDirectionText(item) {
@@ -4286,6 +4361,7 @@ async function loadSnapshot(forceFull = false) {
       };
     }
     const snapshot = latestSnapshot;
+    renderPairDecisionDeck(snapshot);
     renderMobileLearningStatus(snapshot);
     renderMarketTape(snapshot.markets);
     renderMapLiveFx(snapshot.markets, snapshot.generatedAt);
@@ -4385,6 +4461,7 @@ function scheduleLiveFxRefresh() {
   }, deliveryCadence().liveFx);
 }
 
+initFullWidthCharts();
 initResponsiveIntelligenceRail();
 showOpenedNotificationDetail();
 initMobileSectionTabs();

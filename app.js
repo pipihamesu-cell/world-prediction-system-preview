@@ -4219,15 +4219,21 @@ async function askCurrentStatus(question) {
   aiQuestionStatusEl.textContent = "最新状態を確認中";
   aiQuestionAnswerEl.textContent = "価格、ニュース、予測、仮想取引を照合しています。";
   try {
-    const response = await fetch("/api/ask-current-status", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question: value })
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `API ${response.status}`);
+    let result;
+    if (STATIC_PREVIEW_MODE) {
+      const assistant = await import("./current-status-assistant.js?v=156");
+      result = assistant.answerCurrentStatus(value, latestSnapshot);
+    } else {
+      const response = await fetch("/api/ask-current-status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: value })
+      });
+      result = await response.json();
+      if (!response.ok) throw new Error(result.error || `API ${response.status}`);
+    }
     renderAiQuestionAnswer(result);
-    aiQuestionStatusEl.textContent = "最新データで回答";
+    aiQuestionStatusEl.textContent = STATIC_PREVIEW_MODE ? "保存済み確認データで回答" : "最新データで回答";
     localStorage.setItem("worldPredictionLastQuestion", value);
   } catch (error) {
     aiQuestionAnswerEl.textContent = `回答エラー: ${error.message}`;

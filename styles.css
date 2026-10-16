@@ -5066,9 +5066,12 @@ body.design-command .finance-hotspots { background: #091117; }
 .paper-history-head strong { color: var(--text); }
 .paper-table-scroll { overflow-x: auto; }
 .paper-table-scroll table { width: 100%; min-width: 760px; border-collapse: collapse; }
+.paper-table-scroll table.gate-lot-table { min-width: 1180px; }
 .paper-table-scroll th, .paper-table-scroll td { padding: 8px 10px; border-top: 1px solid rgba(218, 233, 224, 0.08); text-align: left; white-space: nowrap; font-size: 10px; }
 .paper-table-scroll th { color: var(--muted); font-weight: 600; }
 .paper-table-scroll td { color: var(--text); }
+.paper-table-scroll td strong, .paper-table-scroll td small { display: block; }
+.paper-table-scroll td small { margin-top: 2px; color: var(--muted); font-size: 8px; }
 .paper-history-empty { padding: 14px 10px; border-top: 1px solid rgba(218, 233, 224, 0.08); color: var(--muted); font-size: 11px; }
 
 @media (max-width: 680px) {

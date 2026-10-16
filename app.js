@@ -3689,6 +3689,9 @@ function renderPaperTrading(official, shadow, comparison) {
   if (!paperTradingComparisonEl || !comparison) return;
   const gate = comparison.gateVerification || {};
   const yen = (value) => `${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
+  const sideLabel = (row) => (row.side === "long" || row.direction === "up") ? "買い" : (row.side === "short" || row.direction === "down") ? "売り" : "--";
+  const lotLabel = (row) => Number(row.lots || 0) > 0 ? `${row.lotSizingMode === "historical_estimate" ? "約" : ""}${Number(row.lots).toFixed(0)}ロット` : "--";
+  const unitsLabel = (row) => Number(row.baseUnits || 0) > 0 ? `${Number(row.baseUnits).toLocaleString("ja-JP")}通貨` : "--";
   paperTradingComparisonEl.innerHTML = `
     <div class="gate-summary-grid">
       <div><span>公式口座</span><strong>${yen(comparison.official?.equity)}</strong><small>${comparison.official?.trades || 0}取引 / 勝率 ${comparison.official?.winRate == null ? "--" : `${Math.round(comparison.official.winRate * 100)}%`}</small></div>
@@ -3697,8 +3700,8 @@ function renderPaperTrading(official, shadow, comparison) {
       <div><span>見送りによる機会損失</span><strong>${gate.missedOpportunities || 0}件</strong><small>逸失利益 ${yen(gate.missedProfitJpy)}</small></div>
     </div>
     <div class="paper-trade-history">
-      <div class="paper-history-head"><span>ゲート判断検証</span><strong>${gate.samples || 0}標本</strong></div>
-      ${(gate.recent || []).length ? `<div class="paper-table-scroll"><table><thead><tr><th>決済日時</th><th>判定</th><th>損益</th><th>確率</th><th>局面</th><th>不合格理由</th><th>ドリフト</th></tr></thead><tbody>${gate.recent.map((row) => `<tr><td>${new Date(row.closedAt).toLocaleString("ja-JP")}</td><td>${row.classification}</td><td class="${Number(row.netPnl || 0) >= 0 ? "up" : "down"}">${yen(row.netPnl)}</td><td>${Math.round(Number(row.probability || 0) * 100)}%</td><td>${row.regime?.label || row.regime?.key || "--"}</td><td>${row.qualityGateReason || "--"}</td><td>${row.conformalDrift?.label || row.conformalDrift?.state || "--"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="paper-history-empty">品質ゲート不合格のシャドー取引が決済されると、判断検証をここへ蓄積します。</div>`}
+      <div class="paper-history-head"><span>ゲート判断検証</span><strong>${gate.samples || 0}標本 / 買い ${gate.buyTrades || 0}件・約${Number(gate.buyLots || 0).toFixed(0)}ロット / 売り ${gate.sellTrades || 0}件・約${Number(gate.sellLots || 0).toFixed(0)}ロット（過去換算含む）</strong></div>
+      ${(gate.recent || []).length ? `<div class="paper-table-scroll"><table class="gate-lot-table"><thead><tr><th>決済日時</th><th>売買</th><th>ロット</th><th>取引数量</th><th>必要証拠金</th><th>判定</th><th>損益</th><th>確率</th><th>局面</th><th>不合格理由</th><th>ドリフト</th></tr></thead><tbody>${gate.recent.map((row) => `<tr><td>${new Date(row.closedAt).toLocaleString("ja-JP")}</td><td class="${sideLabel(row) === "買い" ? "up" : "down"}">${sideLabel(row)}</td><td><strong>${lotLabel(row)}</strong>${row.lotSizingMode === "historical_estimate" ? "<small>過去元本から換算</small>" : ""}</td><td>${unitsLabel(row)}</td><td>${row.requiredMarginJpy ? yen(row.requiredMarginJpy) : "--"}</td><td>${row.classification}</td><td class="${Number(row.netPnl || 0) >= 0 ? "up" : "down"}">${yen(row.netPnl)}</td><td>${Math.round(Number(row.probability || 0) * 100)}%</td><td>${row.regime?.label || row.regime?.key || "--"}</td><td>${row.qualityGateReason || "--"}</td><td>${row.conformalDrift?.label || row.conformalDrift?.state || "--"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="paper-history-empty">品質ゲート不合格のシャドー取引が決済されると、判断検証をここへ蓄積します。</div>`}
     </div>`;
 }
 

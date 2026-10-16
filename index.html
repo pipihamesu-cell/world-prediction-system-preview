@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=160" />
+    <link rel="stylesheet" href="./styles.css?v=162" />
   </head>
   <body>
     <main class="shell">
@@ -50,6 +50,7 @@
         <div class="paper-position-jump">詳細を見る <b aria-hidden="true">›</b></div>
       </a>
       <section id="full-width-chart-stack" class="full-width-chart-stack" aria-label="EUR/USD・USD/JPY 全幅チャート"></section>
+      <section id="full-width-gate-stack" class="full-width-gate-stack" aria-label="品質ゲート判断検証 全幅表示"></section>
       <div class="left-rail">
       <aside class="briefing-panel briefing-dock" aria-label="AIブリーフィング">
         <span>AIブリーフィング</span>
@@ -537,7 +538,7 @@
           <div id="shadow-paper-trading" class="paper-trading"></div>
         </section>
 
-        <section class="gate-verification-wrap" aria-label="品質ゲート判断検証">
+        <section id="gate-verification-panel" class="gate-verification-wrap" aria-label="品質ゲート判断検証">
           <div class="paper-trading-head">
             <div><span>品質ゲート判断検証</span><small>公式口座と学習口座の比較・今後のゲート閾値学習用</small></div>
             <strong>推定コスト控除後</strong>
@@ -674,6 +675,6 @@
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="./app.js?v=160"></script>
+    <script src="./app.js?v=162"></script>
   </body>
 </html>

@@ -5088,6 +5088,15 @@ body.design-command .finance-hotspots { background: #091117; }
 .paper-condition-grid small.met { color: var(--green); }
 .paper-condition-grid small.unmet { color: var(--amber); }
 .paper-trading-comparison { padding: 12px; }
+.gate-instrument-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 8px; margin-top: 10px; }
+.gate-instrument-summary article { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid rgba(244, 211, 94, .24); background: rgba(244, 211, 94, .035); }
+.gate-instrument-summary article > div { min-width: 0; padding: 9px 10px; border-right: 1px solid rgba(244, 211, 94, .12); }
+.gate-instrument-summary article > div:last-child { border-right: 0; }
+.gate-instrument-summary span,.gate-instrument-summary strong { display: block; }
+.gate-instrument-summary span { color: var(--muted); font-size: 10px; }
+.gate-instrument-summary strong { margin-top: 4px; color: var(--text); font-size: 14px; }
+.gate-instrument-summary strong.up { color: var(--green); }
+.gate-instrument-summary strong.down { color: var(--red); }
 .gate-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid rgba(218, 233, 224, 0.1); }
 .gate-summary-grid > div { padding: 10px; border-right: 1px solid rgba(218, 233, 224, 0.08); }
 .gate-summary-grid > div:last-child { border-right: 0; }
@@ -6093,14 +6102,25 @@ body.design-command .price { font-family: ui-monospace, Consolas, monospace; }
 .full-width-chart-stack > .eurusd-pivot-wrap { width: 100%; min-width: 0; margin: 0; }
 .full-width-chart-stack .eurusd-pivot-chart { height: 520px; }
 
+.full-width-gate-stack {
+  grid-column: 1 / -1;
+  grid-row: 6;
+  min-width: 0;
+  padding: 0 14px 14px;
+  border-bottom: 1px solid rgba(244, 211, 94, .24);
+  background: #050b0f;
+}
+.full-width-gate-stack[hidden] { display: none; }
+.full-width-gate-stack > .gate-verification-wrap { width: 100%; margin: 0; }
+
 .shell,
-body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto; }
+body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto; }
 .forecast-newsflash { grid-row: 2; }
 .mobile-learning-status { grid-row: 3; }
 .paper-position-bar { grid-row: 4; }
-.left-rail { grid-row: 6; }
+.left-rail { grid-row: 7; }
 .dashboard,
-body.design-command .dashboard { grid-row: 6; }
+body.design-command .dashboard { grid-row: 7; }
 
 @media (max-width: 1280px) and (min-width: 901px) {
   .pair-decision-deck { grid-template-columns: 150px minmax(0, 1fr); }
@@ -7045,6 +7065,10 @@ body .left-rail > .briefing-dock small { color: var(--amber); font-size: 10px; l
   body .left-rail > .briefing-dock p { grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body .left-rail > .briefing-dock small { display: none; }
   .map-marker-tooltip { width: min(220px, 62vw); }
+  .gate-instrument-summary { grid-template-columns: 1fr; }
+  .gate-instrument-summary article { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gate-instrument-summary article > div:nth-child(2) { border-right: 0; }
+  .gate-instrument-summary article > div:nth-child(-n+2) { border-bottom: 1px solid rgba(244, 211, 94, .12); }
 }
 
 .mobile-section-tabs,
@@ -7277,16 +7301,17 @@ body.compact-operations .market-grid { grid-template-columns: repeat(2, minmax(0
 /* Keep the decision deck first and both pivot charts on uninterrupted rows. */
 .shell,
 body.design-command .shell {
-  grid-template-rows: auto 50px auto auto auto auto;
+  grid-template-rows: auto 50px auto auto auto auto auto;
 }
 .pair-decision-deck { grid-column: 1 / -1; grid-row: 1; }
 .forecast-newsflash { grid-column: 1 / -1; grid-row: 2; }
 .mobile-learning-status { grid-column: 1 / -1; grid-row: 3; }
 .paper-position-bar { grid-column: 1 / -1; grid-row: 4; }
 .full-width-chart-stack { grid-column: 1 / -1; grid-row: 5; }
-.left-rail { grid-column: 1; grid-row: 6; }
+.full-width-gate-stack { grid-column: 1 / -1; grid-row: 6; }
+.left-rail { grid-column: 1; grid-row: 7; }
 .dashboard,
-body.design-command .dashboard { grid-column: 2; grid-row: 6; }
+body.design-command .dashboard { grid-column: 2; grid-row: 7; }
 
 @media (max-width: 900px) {
   .shell,

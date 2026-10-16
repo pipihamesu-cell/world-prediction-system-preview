@@ -187,6 +187,7 @@ const pairDecisionDeckEl = document.getElementById("pair-decision-deck");
 const pairDecisionCardsEl = document.getElementById("pair-decision-cards");
 const pairDecisionUpdatedEl = document.getElementById("pair-decision-updated");
 const fullWidthChartStackEl = document.getElementById("full-width-chart-stack");
+const fullWidthGateStackEl = document.getElementById("full-width-gate-stack");
 const paperPositionBarEl = document.getElementById("paper-position-bar");
 const paperPositionStateEl = document.getElementById("paper-position-state");
 const paperPositionSummaryEl = document.getElementById("paper-position-summary");
@@ -224,6 +225,21 @@ function initFullWidthCharts() {
   if (usdjpyPanel) fullWidthChartStackEl.appendChild(usdjpyPanel);
 }
 
+function initFullWidthGateVerification() {
+  const panel = document.querySelector(".gate-verification-wrap");
+  if (!panel || !fullWidthGateStackEl) return;
+  const anchor = document.createComment("original-position:.gate-verification-wrap");
+  panel.parentNode.insertBefore(anchor, panel);
+  const media = window.matchMedia("(min-width: 901px)");
+  const arrange = () => {
+    if (media.matches) fullWidthGateStackEl.appendChild(panel);
+    else anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    fullWidthGateStackEl.hidden = !media.matches;
+  };
+  arrange();
+  media.addEventListener?.("change", arrange);
+}
+
 function initResponsiveIntelligenceRail() {
   if (!leftIntelligenceStackEl) return;
   const selectors = [
@@ -241,7 +257,6 @@ function initResponsiveIntelligenceRail() {
     [".eurusd-timeframes-wrap", "wide"],
     [".ai-improvement-wrap", "left"],
     [".trade-opportunity-wrap", "wide"],
-    [".gate-verification-wrap", "wide"],
     [".radar-wrap", "wide"],
     [".pulse-wrap", "wide"],
     [".scenario-wrap", "wide"],
@@ -3700,6 +3715,7 @@ function renderPaperTrading(official, shadow, comparison) {
   const gate = comparison.gateVerification || {};
   const yen = (value) => `${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
   const sideLabel = (row) => (row.side === "long" || row.direction === "up") ? "買い" : (row.side === "short" || row.direction === "down") ? "売り" : "--";
+  const pairLabel = (row) => row.pairLabel || (row.assetId === "usdjpy" ? "USD/JPY" : "EUR/USD");
   const lotLabel = (row) => Number(row.lots || 0) > 0 ? `${row.lotSizingMode === "historical_estimate" ? "約" : ""}${Number(row.lots).toFixed(0)}ロット` : "--";
   const unitsLabel = (row) => Number(row.baseUnits || 0) > 0 ? `${Number(row.baseUnits).toLocaleString("ja-JP")}通貨` : "--";
   paperTradingComparisonEl.innerHTML = `
@@ -3709,9 +3725,12 @@ function renderPaperTrading(official, shadow, comparison) {
       <div><span>品質ゲートで見送って正解</span><strong>${gate.skippedCorrectly || 0}件</strong><small>回避損失 ${yen(gate.avoidedLossJpy)}</small></div>
       <div><span>見送りによる機会損失</span><strong>${gate.missedOpportunities || 0}件</strong><small>逸失利益 ${yen(gate.missedProfitJpy)}</small></div>
     </div>
+    <div class="gate-instrument-summary">
+      ${(gate.pairBreakdown || []).map((row) => `<article><div><span>検証対象</span><strong>${pairLabel(row)}</strong></div><div><span>買い</span><strong>${row.buyTrades || 0}件 / ${Number(row.buyLots || 0).toFixed(0)}ロット</strong></div><div><span>売り</span><strong>${row.sellTrades || 0}件 / ${Number(row.sellLots || 0).toFixed(0)}ロット</strong></div><div><span>判定損益</span><strong class="${Number(row.netPnlJpy || 0) >= 0 ? "up" : "down"}">${yen(row.netPnlJpy)}</strong></div></article>`).join("") || `<article><div><span>検証対象</span><strong>EUR/USD</strong></div><div><span>売買履歴</span><strong>蓄積中</strong></div></article>`}
+    </div>
     <div class="paper-trade-history">
       <div class="paper-history-head"><span>ゲート判断検証</span><strong>${gate.samples || 0}標本 / 買い ${gate.buyTrades || 0}件・約${Number(gate.buyLots || 0).toFixed(0)}ロット / 売り ${gate.sellTrades || 0}件・約${Number(gate.sellLots || 0).toFixed(0)}ロット（過去換算含む）</strong></div>
-      ${(gate.recent || []).length ? `<div class="paper-table-scroll"><table class="gate-lot-table"><thead><tr><th>決済日時</th><th>売買</th><th>ロット</th><th>取引数量</th><th>必要証拠金</th><th>判定</th><th>損益</th><th>確率</th><th>局面</th><th>不合格理由</th><th>ドリフト</th></tr></thead><tbody>${gate.recent.map((row) => `<tr><td>${new Date(row.closedAt).toLocaleString("ja-JP")}</td><td class="${sideLabel(row) === "買い" ? "up" : "down"}">${sideLabel(row)}</td><td><strong>${lotLabel(row)}</strong>${row.lotSizingMode === "historical_estimate" ? "<small>過去元本から換算</small>" : ""}</td><td>${unitsLabel(row)}</td><td>${row.requiredMarginJpy ? yen(row.requiredMarginJpy) : "--"}</td><td>${row.classification}</td><td class="${Number(row.netPnl || 0) >= 0 ? "up" : "down"}">${yen(row.netPnl)}</td><td>${Math.round(Number(row.probability || 0) * 100)}%</td><td>${row.regime?.label || row.regime?.key || "--"}</td><td>${row.qualityGateReason || "--"}</td><td>${row.conformalDrift?.label || row.conformalDrift?.state || "--"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="paper-history-empty">品質ゲート不合格のシャドー取引が決済されると、判断検証をここへ蓄積します。</div>`}
+      ${(gate.recent || []).length ? `<div class="paper-table-scroll"><table class="gate-lot-table"><thead><tr><th>決済日時</th><th>通貨ペア</th><th>売買</th><th>ロット</th><th>取引数量</th><th>必要証拠金</th><th>判定</th><th>損益</th><th>確率</th><th>局面</th><th>不合格理由</th><th>ドリフト</th></tr></thead><tbody>${gate.recent.map((row) => `<tr><td>${new Date(row.closedAt).toLocaleString("ja-JP")}</td><td><strong>${pairLabel(row)}</strong></td><td class="${sideLabel(row) === "買い" ? "up" : "down"}">${sideLabel(row)}</td><td><strong>${lotLabel(row)}</strong>${row.lotSizingMode === "historical_estimate" ? "<small>過去元本から換算</small>" : ""}</td><td>${unitsLabel(row)}</td><td>${row.requiredMarginJpy ? yen(row.requiredMarginJpy) : "--"}</td><td>${row.classification}</td><td class="${Number(row.netPnl || 0) >= 0 ? "up" : "down"}">${yen(row.netPnl)}</td><td>${Math.round(Number(row.probability || 0) * 100)}%</td><td>${row.regime?.label || row.regime?.key || "--"}</td><td>${row.qualityGateReason || "--"}</td><td>${row.conformalDrift?.label || row.conformalDrift?.state || "--"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="paper-history-empty">品質ゲート不合格のシャドー取引が決済されると、判断検証をここへ蓄積します。</div>`}
     </div>`;
 }
 
@@ -4475,6 +4494,7 @@ function scheduleLiveFxRefresh() {
 }
 
 initFullWidthCharts();
+initFullWidthGateVerification();
 initResponsiveIntelligenceRail();
 showOpenedNotificationDetail();
 initMobileSectionTabs();

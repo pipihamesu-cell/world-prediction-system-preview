@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=159" />
   </head>
   <body>
     <main class="shell">
@@ -400,9 +400,9 @@
             <button type="button" class="pivot-auto-line active" data-auto-line="eurusd" aria-pressed="true">AUTO LINE</button>
             <button type="button" id="euro-sovereign-spread-toggle" class="pivot-spread-toggle" aria-pressed="false">仏独金利差</button>
           </div>
+          <div id="eurusd-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
           <div class="pivot-chart-stage">
             <div id="eurusd-pivot-chart" class="eurusd-pivot-chart" aria-label="EUR/USDローソク足とピボットライン"></div>
-            <div id="eurusd-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
           </div>
           <div id="eurusd-pivot-levels" class="eurusd-pivot-levels"></div>
           <div class="euro-sovereign-spread-summary" aria-label="フランス・ドイツ10年国債金利差">
@@ -429,9 +429,9 @@
             <button type="button" data-usdjpy-pivot-timeframe="d1" role="tab">日足</button>
             <button type="button" class="pivot-auto-line active" data-auto-line="usdjpy" aria-pressed="true">AUTO LINE</button>
           </div>
+          <div id="usdjpy-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
           <div class="pivot-chart-stage">
             <div id="usdjpy-pivot-chart" class="eurusd-pivot-chart" aria-label="USD/JPYローソク足とピボットライン"></div>
-            <div id="usdjpy-pivot-trade" class="pivot-trade-overlay waiting" aria-live="polite"></div>
           </div>
           <div id="usdjpy-pivot-levels" class="eurusd-pivot-levels"></div>
           <div class="eurusd-pivot-note">
@@ -675,6 +675,6 @@
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="./app.js?v=158"></script>
+    <script src="./app.js?v=159"></script>
   </body>
 </html>

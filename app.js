@@ -769,9 +769,16 @@ function initGlobe() {
     .pointColor((point) => point.kind === "financial-center"
       ? point.status === "警戒" ? "#ff5e7d" : point.status === "注目" ? "#ffdb70" : "#61d8ff"
       : point.mag >= 5 ? "#ff6b68" : point.mag >= 3 ? "#f0b84f" : "#46d58c")
-    .pointLabel((point) => point.kind === "financial-center"
-      ? `<strong>${point.name}</strong><br>${point.role}<br>状態: ${point.status} / 圧力 ${point.pressure}%<br>${(point.reasons || []).join(" / ")}`
-      : `${point.title}<br>${new Date(point.time).toLocaleString("ja-JP")}`)
+    .pointLabel((point) => {
+      const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+      if (point.kind === "financial-center") {
+        const level = point.status === "警戒" ? "赤 / 警報級" : point.status === "注目" ? "黄 / 異変" : "青 / 通常監視";
+        return `<div class="globe-point-tooltip"><b>金融拠点マーカー</b><strong>${escapeHtml(point.name)}</strong><span>${escapeHtml(point.role || "市場監視")}</span><span>${level} / 市場圧力 ${Math.round(Number(point.pressure || 0))}%</span><small>${escapeHtml((point.reasons || []).join(" / ") || "特殊要因なし")}</small></div>`;
+      }
+      const occurredAt = point.time ? new Date(point.time).toLocaleString("ja-JP") : "時刻確認中";
+      const magnitude = Number.isFinite(Number(point.mag)) ? ` / 規模 ${Number(point.mag).toFixed(1)}` : "";
+      return `<div class="globe-point-tooltip"><b>自然現象マーカー</b><strong>${escapeHtml(point.title || "世界イベント")}</strong><span>${escapeHtml(occurredAt)}${magnitude}</span><small>地球儀の棒は発生地点と影響強度を示します。</small></div>`;
+    })
     .arcColor((arc) => arc.kind === "market-flow"
       ? ["rgba(97,216,255,0.18)", Number(arc.strength || 0) >= 70 ? "rgba(255,94,125,0.85)" : "rgba(70,213,140,0.82)"]
       : ["rgba(97,216,255,0.15)", "rgba(70,213,140,0.72)"])
@@ -1412,7 +1419,10 @@ function renderMap2d(events, centers, alerts) {
     positionCounts.set(key, collisionIndex + 1);
     const left = Math.max(4, Math.min(96, ((lng + 180) / 360) * 100 + collisionIndex * 3.2));
     const top = Math.max(25, Math.min(82, ((90 - lat) / 180) * 100 + collisionIndex * 4));
-    return `<button type="button" class="map-marker-pole ${item.level}" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-level="${item.level}" data-title="${escapeMarkup(item.label)}" data-detail="${escapeMarkup(item.detail)}" data-meta="${escapeMarkup(`${sourceLocation} / ${direction}${timestamp ? ` / ${new Date(timestamp).toLocaleString("ja-JP")}` : ""}`)}" aria-label="${escapeMarkup(item.label)}の詳細を表示"><i></i><b>${item.level === "critical" ? "警報" : item.level === "warning" ? "異変" : "正常"}</b></button>`;
+    const levelLabel = item.level === "critical" ? "赤 / 警報級" : item.level === "warning" ? "黄 / 異変" : "青 / 異常なし";
+    const timeLabel = timestamp ? new Date(timestamp).toLocaleString("ja-JP") : "監視中";
+    const tooltipSide = left > 70 ? " tooltip-left" : "";
+    return `<button type="button" class="map-marker-pole ${item.level}${tooltipSide}" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-level="${item.level}" data-title="${escapeMarkup(item.label)}" data-detail="${escapeMarkup(item.detail)}" data-meta="${escapeMarkup(`${sourceLocation} / ${direction} / ${timeLabel}`)}" title="${escapeMarkup(`${levelLabel}: ${item.label} - ${item.detail}`)}" aria-label="${escapeMarkup(`${levelLabel} ${item.label}。${item.detail}。${sourceLocation}。${direction}。${timeLabel}`)}"><i></i><b>${item.level === "critical" ? "警報" : item.level === "warning" ? "異変" : "正常"}</b><span class="map-marker-tooltip" role="tooltip"><strong>${escapeMarkup(item.label)}</strong><span>${escapeMarkup(levelLabel)} / ${escapeMarkup(sourceLocation)}</span><small>${escapeMarkup(item.detail)}</small><em>${escapeMarkup(`${direction} / ${timeLabel}`)}</em></span></button>`;
   }).join("");
 }
 
@@ -4620,6 +4630,8 @@ applyGlobeMode();
 applyDesignMode();
 applyDetailMode({ rerender: false });
 mapAlertMarkersEl?.addEventListener("click", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));
+mapAlertMarkersEl?.addEventListener("mouseover", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));
+mapAlertMarkersEl?.addEventListener("focusin", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));
 mapEventDetailCloseEl?.addEventListener("click", () => { mapEventDetailEl.hidden = true; });
 soundToggleEl.addEventListener("click", () => {
   soundPreviewActive = false;

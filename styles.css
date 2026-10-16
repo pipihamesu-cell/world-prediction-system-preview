@@ -162,6 +162,38 @@ button {
 .map-marker-pole.warning { color: var(--amber); }
 .map-marker-pole.critical { color: var(--red); animation: mapCriticalPulse 1.25s ease-in-out infinite; }
 .map-marker-pole:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.map-marker-tooltip {
+  position: absolute;
+  z-index: 24;
+  left: 27px;
+  top: -10px;
+  width: min(260px, 46vw);
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid currentColor;
+  color: var(--text);
+  text-align: left;
+  background: rgba(3, 10, 15, .97);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .5);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity .14s ease, transform .14s ease;
+  pointer-events: none;
+}
+.map-marker-pole.tooltip-left .map-marker-tooltip { left: auto; right: 27px; }
+.map-marker-pole:hover .map-marker-tooltip,
+.map-marker-pole:focus-visible .map-marker-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+.map-marker-tooltip strong { color: #fff; font-size: 12px; line-height: 1.35; }
+.map-marker-tooltip span { color: currentColor; font-size: 10px; font-weight: 900; }
+.map-marker-tooltip small,
+.map-marker-tooltip em { color: var(--muted); font-size: 10px; line-height: 1.4; font-style: normal; }
+.globe-point-tooltip { display: grid; gap: 4px; max-width: 270px; padding: 3px 2px; font-family: Inter, system-ui, sans-serif; }
+.globe-point-tooltip b { color: #61d8ff; font-size: 10px; }
+.globe-point-tooltip strong { color: #fff; font-size: 14px; }
+.globe-point-tooltip span { color: #d9e8e5; font-size: 11px; }
+.globe-point-tooltip small { color: #a8bbb6; font-size: 10px; line-height: 1.45; }
 @keyframes mapCriticalPulse { 50% { filter: brightness(1.5); transform: translate(-50%,-100%) scale(1.08); } }
 
 .map-event-detail { position: absolute; z-index: 14; left: 14px; bottom: 14px; display: grid; gap: 5px; width: min(330px, calc(100% - 28px)); border: 1px solid rgba(97,216,255,.48); padding: 12px 40px 12px 13px; background: rgba(3,12,17,.95); box-shadow: 0 14px 34px rgba(0,0,0,.5); }
@@ -6970,6 +7002,49 @@ body.design-command .dashboard {
   .terminal-nav a { padding: 0 8px; font-size: 10px; }
   .globe-section { height: 540px; min-height: 540px; }
   .briefing-panel { left: 124px; }
+}
+
+/* AIブリーフィングは地図の外側に置き、地球儀の視認領域を確保する。 */
+body .left-rail > .briefing-dock {
+  position: relative;
+  z-index: 5;
+  inset: auto;
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 112px minmax(130px, .72fr) minmax(220px, 1.35fr) minmax(180px, .85fr);
+  align-items: center;
+  gap: 12px;
+  max-height: none;
+  overflow: visible;
+  margin: 0;
+  padding: 9px 14px;
+  border: 0;
+  border-top: 1px solid rgba(97, 216, 255, .25);
+  border-bottom: 1px solid rgba(97, 216, 255, .34);
+  border-left: 3px solid var(--cyan);
+  background: #071116;
+  backdrop-filter: none;
+}
+body .left-rail > .briefing-dock span,
+body .left-rail > .briefing-dock strong,
+body .left-rail > .briefing-dock p,
+body .left-rail > .briefing-dock small { min-width: 0; margin: 0; }
+body .left-rail > .briefing-dock span { font-size: 10px; letter-spacing: .04em; }
+body .left-rail > .briefing-dock strong { font-size: 15px; line-height: 1.3; }
+body .left-rail > .briefing-dock p { color: var(--muted); font-size: 11px; line-height: 1.4; }
+body .left-rail > .briefing-dock small { color: var(--amber); font-size: 10px; line-height: 1.4; }
+
+@media (max-width: 680px) {
+  body .left-rail > .briefing-dock {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 5px 9px;
+    min-height: 70px;
+    padding: 8px 10px;
+  }
+  body .left-rail > .briefing-dock p { grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body .left-rail > .briefing-dock small { display: none; }
+  .map-marker-tooltip { width: min(220px, 62vw); }
 }
 
 .mobile-section-tabs,

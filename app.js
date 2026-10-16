@@ -1,6 +1,7 @@
 // Restorable presentation features. See docs/RESTORABLE_FEATURES.md.
 const FEATURE_FLAGS = Object.freeze({ globe3d: true });
 const STATIC_PREVIEW_MODE = location.hostname.endsWith("github.io");
+const signedYen = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
 const globeEl = document.getElementById("globe");
 const map2dEl = document.getElementById("map-2d");
 const mapAlertMarkersEl = document.getElementById("map-alert-markers");
@@ -4221,7 +4222,7 @@ async function askCurrentStatus(question) {
   try {
     let result;
     if (STATIC_PREVIEW_MODE) {
-      const assistant = await import("./current-status-assistant.js?v=156");
+      const assistant = await import("./current-status-assistant.js?v=157");
       result = assistant.answerCurrentStatus(value, latestSnapshot);
     } else {
       const response = await fetch("/api/ask-current-status", {

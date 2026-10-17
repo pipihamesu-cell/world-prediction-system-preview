@@ -1,6 +1,7 @@
 // Restorable presentation features. See docs/RESTORABLE_FEATURES.md.
 const FEATURE_FLAGS = Object.freeze({ globe3d: true });
-const STATIC_PREVIEW_MODE = location.hostname.endsWith("github.io");
+const NATIVE_APP_MODE = Boolean(globalThis.WpsNative?.isNative);
+const STATIC_PREVIEW_MODE = location.hostname.endsWith("github.io") || NATIVE_APP_MODE;
 const signedYen = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
 const globeEl = document.getElementById("globe");
 const map2dEl = document.getElementById("map-2d");
@@ -4414,21 +4415,33 @@ async function loadSnapshot(forceFull = false) {
   try {
     const fullRefresh = Boolean(forceFull) || !latestSnapshot || Date.now() - lastFullSnapshotAt >= deliveryCadence().full;
     const endpoint = STATIC_PREVIEW_MODE
-      ? new URL("./preview-snapshot.json", document.baseURI).toString()
+      ? NATIVE_APP_MODE
+        ? globalThis.WpsNative.snapshotUrl
+        : new URL("./preview-snapshot.json", document.baseURI).toString()
       : fullRefresh
       ? `/api/snapshot${detailMode === "compact" ? "?view=compact" : ""}`
       : "/api/snapshot/pulse";
     const currentEtag = STATIC_PREVIEW_MODE ? "" : fullRefresh ? snapshotEtag : coreSnapshotEtag;
-    const response = await fetch(endpoint, {
-      cache: "no-cache",
-      headers: currentEtag ? { "If-None-Match": currentEtag } : {}
-    });
-    if (response.status === 304) return;
-    if (!response.ok) throw new Error(`API ${response.status}`);
-    const responseEtag = response.headers.get("etag") || currentEtag;
-    if (fullRefresh) snapshotEtag = responseEtag;
-    else coreSnapshotEtag = responseEtag;
-    const payload = await response.json();
+    let payload;
+    let usingNativeCache = false;
+    try {
+      const response = await fetch(endpoint, {
+        cache: "no-cache",
+        headers: currentEtag ? { "If-None-Match": currentEtag } : {}
+      });
+      if (response.status === 304) return;
+      if (!response.ok) throw new Error(`API ${response.status}`);
+      const responseEtag = response.headers.get("etag") || currentEtag;
+      if (fullRefresh) snapshotEtag = responseEtag;
+      else coreSnapshotEtag = responseEtag;
+      payload = await response.json();
+      if (NATIVE_APP_MODE) await globalThis.WpsNative.saveSnapshot(payload);
+    } catch (networkError) {
+      const cached = NATIVE_APP_MODE ? await globalThis.WpsNative.loadSnapshot() : null;
+      if (!cached?.snapshot) throw networkError;
+      payload = cached.snapshot;
+      usingNativeCache = true;
+    }
     if (fullRefresh || STATIC_PREVIEW_MODE) {
       latestSnapshot = payload;
       lastFullSnapshotAt = Date.now();
@@ -4451,6 +4464,7 @@ async function loadSnapshot(forceFull = false) {
       };
     }
     const snapshot = latestSnapshot;
+    if (NATIVE_APP_MODE) globalThis.WpsNative.syncTradeNotifications(snapshot).catch(() => undefined);
     renderPairDecisionDeck(snapshot);
     renderMobileLearningStatus(snapshot);
     renderMarketTape(snapshot.markets);
@@ -4513,7 +4527,7 @@ async function loadSnapshot(forceFull = false) {
     const delivery = snapshot.delivery || {};
     const generatedTime = new Date(snapshot.generatedAt).toLocaleTimeString("ja-JP");
     updatedAtEl.textContent = STATIC_PREVIEW_MODE
-      ? `読み取り専用 / ${generatedTime}時点`
+      ? `${NATIVE_APP_MODE ? usingNativeCache ? "端末保存データ" : "Android同期" : "読み取り専用"} / ${generatedTime}時点`
       : delivery.mode === "stale-cache"
       ? `最終正常値 ${delivery.ageSeconds}秒前 / 更新中`
       : `${generatedTime}${delivery.refreshing ? " / 裏側で更新中" : ""}`;

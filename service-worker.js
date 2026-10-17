@@ -1,9 +1,10 @@
-const CACHE_NAME = "world-prediction-system-v165";
+const CACHE_NAME = "world-prediction-system-v166";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css",
   "/app.js",
+  "/mobile-native.js",
   "/current-status-assistant.js",
   "/manifest.webmanifest",
   "/icon.svg"

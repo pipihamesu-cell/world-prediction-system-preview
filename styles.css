@@ -5025,6 +5025,31 @@ body.design-command .finance-hotspots { background: #091117; }
 .fundamental-news-wrap { margin-top: 10px; border: 1px solid rgba(97, 216, 255, 0.18); background: rgba(5, 21, 25, 0.72); }
 .fundamental-news-wrap.up { border-color: rgba(70, 213, 140, 0.28); }
 .fundamental-news-wrap.down { border-color: rgba(240, 139, 130, 0.28); }
+.geopolitical-risk-wrap { margin-top: 10px; border: 1px solid rgba(255, 193, 92, .24); background: rgba(12, 18, 22, .92); }
+.geopolitical-risk-wrap.warning { border-color: rgba(255, 193, 92, .52); }
+.geopolitical-risk-wrap.critical { border-color: rgba(255, 86, 92, .72); box-shadow: inset 3px 0 0 rgba(255, 86, 92, .9); }
+.geopolitical-risk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid rgba(255, 193, 92, .18); }
+.geopolitical-risk-head span,.geopolitical-risk-head small { display: block; }
+.geopolitical-risk-head span { color: var(--text); font-weight: 800; }
+.geopolitical-risk-head small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.geopolitical-risk-head strong { color: var(--amber); font-size: 11px; text-align: right; }
+.geopolitical-risk-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-bottom: 1px solid rgba(255, 193, 92, .14); }
+.geopolitical-risk-summary > div { min-width: 0; padding: 10px; border-right: 1px solid rgba(255, 193, 92, .1); }
+.geopolitical-risk-summary > div:last-child { border-right: 0; }
+.geopolitical-risk-summary span,.geopolitical-risk-summary strong,.geopolitical-risk-summary small { display: block; }
+.geopolitical-risk-summary span,.geopolitical-risk-summary small { color: var(--muted); font-size: 9px; }
+.geopolitical-risk-summary strong { margin: 4px 0; color: var(--text); font-size: 14px; }
+.geopolitical-event-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.geopolitical-event-list > a { min-width: 0; padding: 10px 12px; border-right: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); text-decoration: none; color: inherit; }
+.geopolitical-event-list > a.critical { box-shadow: inset 3px 0 0 var(--red); }
+.geopolitical-event-list > a.warning { box-shadow: inset 3px 0 0 var(--amber); }
+.geopolitical-event-list > a.watch { box-shadow: inset 3px 0 0 var(--cyan); }
+.geopolitical-event-list > a > div { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 9px; }
+.geopolitical-event-list strong,.geopolitical-event-list small { display: block; overflow-wrap: anywhere; }
+.geopolitical-event-list strong { margin: 5px 0; color: var(--text); font-size: 11px; line-height: 1.45; }
+.geopolitical-event-list small { color: var(--muted); font-size: 9px; line-height: 1.45; }
+.geopolitical-risk-empty { grid-column: 1 / -1; padding: 14px; color: var(--muted); }
+.geopolitical-risk-method { margin: 0; padding: 8px 12px; color: var(--muted); font-size: 9px; line-height: 1.45; }
 .fundamental-news-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid rgba(97, 216, 255, 0.14); }
 .fundamental-news-head span, .fundamental-news-head small { display: block; }
 .fundamental-news-head span { color: var(--text); font-weight: 800; }
@@ -6481,6 +6506,7 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
   .calendar-wrap,
   .central-bank-tone-wrap,
   .fundamental-news-wrap,
+  .geopolitical-risk-wrap,
   .cot-wrap,
   .options-wrap,
   .swing-compass-wrap,
@@ -6492,8 +6518,8 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
   grid-column: 1 / -1;
 }
 
-.left-intelligence-stack > :is(.central-bank-tone-wrap,.fundamental-news-wrap,.cot-wrap,.options-wrap) { grid-column: auto; height: 100%; }
-.left-intelligence-stack > :is(.fx-news-wrap,.important-info-wrap,.central-bank-tone-wrap,.fundamental-news-wrap,.cot-wrap,.options-wrap) { align-self: stretch; border-radius: 4px; box-shadow: 0 12px 28px rgba(0,0,0,.18); }
+.left-intelligence-stack > :is(.central-bank-tone-wrap,.fundamental-news-wrap,.geopolitical-risk-wrap,.cot-wrap,.options-wrap) { grid-column: auto; height: 100%; }
+.left-intelligence-stack > :is(.fx-news-wrap,.important-info-wrap,.central-bank-tone-wrap,.fundamental-news-wrap,.geopolitical-risk-wrap,.cot-wrap,.options-wrap) { align-self: stretch; border-radius: 4px; box-shadow: 0 12px 28px rgba(0,0,0,.18); }
 
 .left-intelligence-columns { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; align-items: start; }
 .left-intelligence-columns > div { min-width: 0; display: grid; align-content: start; gap: 12px; }
@@ -6514,6 +6540,8 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
 }
 .left-intelligence-columns .central-bank-grid { grid-template-columns: 1fr; }
 .left-intelligence-columns .fundamental-news-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.left-intelligence-columns .geopolitical-risk-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.left-intelligence-columns .geopolitical-event-list { grid-template-columns: 1fr; }
 .left-intelligence-columns :is(.persistent-theme-grid,.fundamental-news-list,.news-propagation-grid) { grid-template-columns: 1fr; }
 .left-intelligence-columns .swing-main { grid-template-columns: 1fr; }
 .left-intelligence-columns :is(.swing-map,.swing-priorities) { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -6539,6 +6567,7 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
   .calendar-wrap,
   .central-bank-tone-wrap,
   .fundamental-news-wrap,
+  .geopolitical-risk-wrap,
   .cot-wrap,
   .options-wrap,
   .swing-compass-wrap,
@@ -6587,6 +6616,11 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
   .signal-wrap,
   .verification-center
 ) { grid-column: 1 / -1; margin: 0; }
+
+@media (max-width: 680px) {
+  .geopolitical-risk-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .geopolitical-event-list { grid-template-columns: 1fr; }
+}
 
 .dashboard,
 body.design-command .dashboard {

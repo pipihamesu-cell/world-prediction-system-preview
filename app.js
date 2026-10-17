@@ -94,6 +94,9 @@ const centralBankToneEl = document.getElementById("central-bank-tone");
 const fundamentalNewsPanelEl = document.getElementById("fundamental-news-panel");
 const fundamentalNewsStatusEl = document.getElementById("fundamental-news-status");
 const fundamentalNewsEl = document.getElementById("fundamental-news");
+const geopoliticalRiskPanelEl = document.getElementById("geopolitical-risk-panel");
+const geopoliticalRiskStatusEl = document.getElementById("geopolitical-risk-status");
+const geopoliticalRiskEl = document.getElementById("geopolitical-risk");
 const currencyStrengthPanelEl = document.getElementById("currency-strength-panel");
 const currencyStrengthStatusEl = document.getElementById("currency-strength-status");
 const currencyStrengthEl = document.getElementById("currency-strength");
@@ -250,6 +253,7 @@ function initResponsiveIntelligenceRail() {
     [".calendar-wrap", "left"],
     [".central-bank-tone-wrap", "right"],
     [".fundamental-news-wrap", "right"],
+    [".geopolitical-risk-wrap", "right"],
     [".cot-wrap", "left"],
     [".options-wrap", "right"],
     [".swing-compass-wrap", "left"],
@@ -323,7 +327,7 @@ function initMobileSectionTabs() {
       ".scenario-wrap"
     ],
     news: [
-      "#important-info-panel", "#fundamental-news-panel", ".ticker-wrap", ".fx-news-wrap",
+      "#important-info-panel", "#fundamental-news-panel", "#geopolitical-risk-panel", ".ticker-wrap", ".fx-news-wrap",
       ".calendar-wrap", "#central-bank-tone-panel", "#cot-panel", "#options-panel",
       ".shock-log-wrap", "#market-grid", ".radar-wrap", ".pulse-wrap", ".focus-wrap", ".signal-wrap"
     ],
@@ -3932,6 +3936,30 @@ function renderFundamentalNews(data) {
   `;
 }
 
+function renderGeopoliticalRisk(data) {
+  if (!geopoliticalRiskEl || !geopoliticalRiskPanelEl || !geopoliticalRiskStatusEl) return;
+  const risk = data?.geopoliticalRisk || {};
+  const score = Number(risk.score || 0);
+  const tone = score >= 70 ? "critical" : score >= 40 ? "warning" : score >= 15 ? "watch" : "calm";
+  geopoliticalRiskPanelEl.className = `geopolitical-risk-wrap ${tone}`;
+  geopoliticalRiskStatusEl.textContent = `${risk.level || "平常"} / リスク ${score}`;
+  const counts = risk.counts || {};
+  geopoliticalRiskEl.innerHTML = `
+    <div class="geopolitical-risk-summary">
+      <div><span>総合リスク</span><strong>${score}/100</strong><small>${risk.level || "平常"}</small></div>
+      <div><span>紛争・戦闘</span><strong>${counts.conflict || 0}件</strong><small>軍事衝突・停戦</small></div>
+      <div><span>デモ・騒乱</span><strong>${counts.protest || 0}件</strong><small>抗議・政情不安</small></div>
+      <div><span>選挙・投票</span><strong>${counts.election || 0}件</strong><small>政策転換リスク</small></div>
+    </div>
+    <div class="geopolitical-event-list">${(risk.latest || []).map((item) => `<a href="${item.url || "#"}" target="_blank" rel="noreferrer" class="${item.severity >= 70 ? "critical" : item.severity >= 45 ? "warning" : "watch"}">
+      <div><span>${item.typeLabel || "地政学"} / ${item.regionLabel || "地域確認中"}</span><time>${formatTime(item.capturedAt || item.publishedAt)}</time></div>
+      <strong>${item.title || "情勢を確認中"}</strong>
+      <small>深刻度 ${item.severity || 0} / 現在リスク ${Number(item.riskScore || 0).toFixed(1)} / ${item.marketChannel || "市場初動を確認中"}</small>
+    </a>`).join("") || `<div class="geopolitical-risk-empty">直近48時間に高信頼の地政学イベントは確認されていません。</div>`}</div>
+    <p class="geopolitical-risk-method">${risk.method || "地政学ニュースを監視しています。"}</p>
+  `;
+}
+
 function renderCurrencyStrength(data, executionCost) {
   if (!currencyStrengthEl || !currencyStrengthPanelEl) return;
   if (!data?.available || !data.currencies?.length) {
@@ -4418,6 +4446,7 @@ async function loadSnapshot(forceFull = false) {
     renderMarketCommandCenter(snapshot.marketCommandCenter);
     renderCentralBankTone(snapshot.centralBankTone);
     renderFundamentalNews(snapshot.fundamentalNews);
+    renderGeopoliticalRisk(snapshot.fundamentalNews);
     renderCurrencyStrength(snapshot.currencyStrength, snapshot.executionCost);
     renderEurusdCommand(snapshot.eurusdCommand, (snapshot.markets || []).find((market) => market.id === "eurusd"));
     renderYenCrossCommand(snapshot.yenCrossCommand);

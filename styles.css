@@ -160,6 +160,7 @@ button {
 .map-marker-pole i { position: absolute; left: 10px; top: 0; width: 14px; height: 14px; border: 2px solid #e8fbff; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 6px color-mix(in srgb,currentColor 22%,transparent),0 0 18px currentColor; }
 .map-marker-pole b { position: absolute; left: 27px; top: -1px; color: currentColor; font: 900 10px ui-monospace,Consolas,monospace; text-shadow: 0 1px 3px #000; white-space: nowrap; }
 .map-marker-pole.warning { color: var(--amber); }
+.map-marker-pole.watch { color: var(--cyan); }
 .map-marker-pole.critical { color: var(--red); animation: mapCriticalPulse 1.25s ease-in-out infinite; }
 .map-marker-pole:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .map-marker-tooltip {
@@ -5039,6 +5040,12 @@ body.design-command .finance-hotspots { background: #091117; }
 .geopolitical-risk-summary span,.geopolitical-risk-summary strong,.geopolitical-risk-summary small { display: block; }
 .geopolitical-risk-summary span,.geopolitical-risk-summary small { color: var(--muted); font-size: 9px; }
 .geopolitical-risk-summary strong { margin: 4px 0; color: var(--text); font-size: 14px; }
+.geopolitical-validation-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-bottom: 1px solid rgba(97,216,255,.13); background: rgba(4,15,19,.45); }
+.geopolitical-validation-grid > div { min-width: 0; padding: 9px 10px; border-right: 1px solid rgba(97,216,255,.09); }
+.geopolitical-validation-grid > div:last-child { border-right: 0; }
+.geopolitical-validation-grid span,.geopolitical-validation-grid strong,.geopolitical-validation-grid small { display: block; overflow-wrap: anywhere; }
+.geopolitical-validation-grid span,.geopolitical-validation-grid small { color: var(--muted); font-size: 9px; }
+.geopolitical-validation-grid strong { margin: 4px 0; color: var(--cyan); font-size: 12px; }
 .geopolitical-event-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
 .geopolitical-event-list > a { min-width: 0; padding: 10px 12px; border-right: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); text-decoration: none; color: inherit; }
 .geopolitical-event-list > a.critical { box-shadow: inset 3px 0 0 var(--red); }
@@ -6619,6 +6626,7 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
 
 @media (max-width: 680px) {
   .geopolitical-risk-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .geopolitical-validation-grid { grid-template-columns: 1fr; }
   .geopolitical-event-list { grid-template-columns: 1fr; }
 }
 

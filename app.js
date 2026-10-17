@@ -438,7 +438,7 @@ const autoLineEnabled = {
 let usdjpyPivotChart = null;
 let usdjpyPivotResizeObserver = null;
 let selectedProfitCalendarMonth = null;
-const globeLayers = { events: true, centers: true, flows: true, alerts: true };
+const globeLayers = { events: true, centers: true, flows: true, alerts: true, geopolitics: true };
 const globeRestoreVersion = "worldPredictionGlobeRestoredV1";
 const savedGlobeMode = localStorage.getItem("worldPredictionMapMode");
 let globeMode = FEATURE_FLAGS.globe3d && (localStorage.getItem(globeRestoreVersion) !== "done" || savedGlobeMode !== "2d") ? "3d" : "2d";
@@ -783,16 +783,21 @@ function initGlobe() {
     .bumpImageUrl("https://unpkg.com/three-globe/example/img/earth-topology.png")
     .atmosphereColor("#61d8ff")
     .atmosphereAltitude(0.18)
-    .pointAltitude((point) => point.kind === "financial-center" ? 0.045 + Number(point.pressure || 0) / 2600 : Math.max(0.03, point.mag * 0.015))
-    .pointRadius((point) => point.kind === "financial-center" ? 0.24 + Number(point.pressure || 0) / 220 : Math.max(0.18, point.mag * 0.08))
+    .pointAltitude((point) => point.kind === "financial-center" ? 0.045 + Number(point.pressure || 0) / 2600 : point.kind === "geopolitical-risk" ? 0.07 + Number(point.severity || 0) / 900 : Math.max(0.03, point.mag * 0.015))
+    .pointRadius((point) => point.kind === "financial-center" ? 0.24 + Number(point.pressure || 0) / 220 : point.kind === "geopolitical-risk" ? 0.3 + Number(point.severity || 0) / 260 : Math.max(0.18, point.mag * 0.08))
     .pointColor((point) => point.kind === "financial-center"
       ? point.status === "警戒" ? "#ff5e7d" : point.status === "注目" ? "#ffdb70" : "#61d8ff"
-      : point.mag >= 5 ? "#ff6b68" : point.mag >= 3 ? "#f0b84f" : "#46d58c")
+      : point.kind === "geopolitical-risk" ? point.severity >= 70 ? "#ff6b68" : point.severity >= 45 ? "#f0b84f" : "#61d8ff"
+        : point.mag >= 5 ? "#ff6b68" : point.mag >= 3 ? "#f0b84f" : "#46d58c")
     .pointLabel((point) => {
       const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
       if (point.kind === "financial-center") {
         const level = point.status === "警戒" ? "赤 / 警報級" : point.status === "注目" ? "黄 / 異変" : "青 / 通常監視";
         return `<div class="globe-point-tooltip"><b>金融拠点マーカー</b><strong>${escapeHtml(point.name)}</strong><span>${escapeHtml(point.role || "市場監視")}</span><span>${level} / 市場圧力 ${Math.round(Number(point.pressure || 0))}%</span><small>${escapeHtml((point.reasons || []).join(" / ") || "特殊要因なし")}</small></div>`;
+      }
+      if (point.kind === "geopolitical-risk") {
+        const level = point.severity >= 70 ? "赤 / 警報級" : point.severity >= 45 ? "黄 / 警戒" : "青 / 監視";
+        return `<div class="globe-point-tooltip"><b>地政学リスク</b><strong>${escapeHtml(point.label)}</strong><span>${escapeHtml(point.location)} / ${level}</span><small>${escapeHtml(point.message)}</small></div>`;
       }
       const occurredAt = point.time ? new Date(point.time).toLocaleString("ja-JP") : "時刻確認中";
       const magnitude = Number.isFinite(Number(point.mag)) ? ` / 規模 ${Number(point.mag).toFixed(1)}` : "";
@@ -810,8 +815,8 @@ function initGlobe() {
     .ringsData([])
     .ringLat((alert) => alert.lat)
     .ringLng((alert) => alert.lng)
-    .ringColor((alert) => alert.severity === "critical" ? "#ff6b68" : "#f0b84f")
-    .ringMaxRadius((alert) => alert.severity === "critical" ? 8 : 5)
+    .ringColor((alert) => alert.severity === "critical" || alert.level === "critical" || Number(alert.severity || 0) >= 70 ? "#ff6b68" : "#f0b84f")
+    .ringMaxRadius((alert) => alert.severity === "critical" || alert.level === "critical" || Number(alert.severity || 0) >= 70 ? 8 : 5)
     .ringPropagationSpeed(2.4)
     .ringRepeatPeriod(700);
 
@@ -1343,16 +1348,30 @@ function renderGlobe(snapshot) {
       severity: center.status === "警戒" ? "critical" : "warning"
     }));
   const currentAlerts = (snapshot.alerts || []).filter((item) => !item.expiresAt || Date.parse(item.expiresAt) > Date.now());
+  const geopoliticalPoints = globeLayers.geopolitics ? (snapshot.fundamentalNews?.geopoliticalRisk?.latest || []).map((item) => ({
+    ...item,
+    kind: "geopolitical-risk",
+    markerType: "geopolitical-risk",
+    label: `地政学: ${item.typeLabel || "情勢変化"}`,
+    message: `${item.title || "情勢を確認中"} / ${item.marketChannel || "市場初動を監視"}`,
+    location: item.regionLabel || "地域確認中",
+    severity: Number(item.severity || 0),
+    level: Number(item.severity || 0) >= 70 ? "critical" : Number(item.severity || 0) >= 45 ? "warning" : "watch",
+    detectedAt: item.capturedAt || item.publishedAt,
+    direction: item.reaction15m?.direction || "flat"
+  })) : [];
+  const visibleAlerts = [...(globeLayers.alerts ? currentAlerts : []), ...geopoliticalPoints];
   if (globe) {
     globe.pointsData([
       ...(globeLayers.events ? eventPoints : []),
-      ...(globeLayers.centers ? centerPoints : [])
+      ...(globeLayers.centers ? centerPoints : []),
+      ...geopoliticalPoints
     ]);
     globe.arcsData(globeLayers.flows ? flowArcs : []);
-    globe.ringsData(globeLayers.alerts ? [...currentAlerts, ...centerRings] : []);
+    globe.ringsData([...visibleAlerts, ...(globeLayers.alerts ? centerRings : [])]);
   }
   renderFlowExplanation(flowArcs);
-  renderMap2d(eventPoints, centerPoints, currentAlerts);
+  renderMap2d(eventPoints, centerPoints, visibleAlerts);
   clearTimeout(mapAlertExpiryTimer);
   const nextExpiry = currentAlerts.map((item) => Date.parse(item.expiresAt || "")).filter((value) => Number.isFinite(value) && value > Date.now()).sort((a, b) => a - b)[0];
   if (nextExpiry) mapAlertExpiryTimer = setTimeout(() => {
@@ -1404,13 +1423,14 @@ function renderMap2d(events, centers, alerts) {
     detail: item.detail || item.message || `規模 ${Number(item.mag || 0).toFixed(1)} の変動を検知`,
     level: Number(item.mag || 0) >= 6 || item.tsunami ? "critical" : "warning"
   })) : [];
-  const alertMarkers = globeLayers.alerts ? alerts.map((item) => ({
+  const alertMarkers = alerts.map((item) => ({
     ...item,
-    markerType: "alert",
+    markerType: item.markerType || "alert",
     label: item.label || item.location || "市場警報",
     detail: item.message || "特殊要因による市場変動を検知しました。",
-    level: item.severity === "critical" ? "critical" : "warning"
-  })) : [];
+    level: item.level === "critical" || item.severity === "critical" || Number(item.severity || 0) >= 70 ? "critical"
+      : item.level === "watch" ? "watch" : "warning"
+  }));
   const calmMarkers = globeLayers.centers && !alertMarkers.length && !eventMarkers.length ? [{
     markerType: "calm", label: "世界監視: 異常なし", detail: "現在、警報級または注意級の特殊要因は検出されていません。", level: "calm", location: "世界市場"
   }] : [];
@@ -1425,7 +1445,10 @@ function renderMap2d(events, centers, alerts) {
     crude: { lat: 29.8, lng: -95.4 }, vix: { lat: 41.9, lng: -87.6 }, usdjpy: { lat: 35.7, lng: 139.7 }
   };
   const positionCounts = new Map();
-  const markers = [...uniqueMarkers.values()].slice(0, 6);
+  const deduplicatedMarkers = [...uniqueMarkers.values()];
+  const geopoliticalMarkers = deduplicatedMarkers.filter((item) => item.markerType === "geopolitical-risk").slice(0, 2);
+  const otherMarkers = deduplicatedMarkers.filter((item) => item.markerType !== "geopolitical-risk");
+  const markers = [...geopoliticalMarkers, ...otherMarkers.slice(0, Math.max(0, 6 - geopoliticalMarkers.length))];
   mapAlertMarkersEl.innerHTML = markers.map((item) => {
     const sourceLocation = item.location || item.place || item.name || (Number.isFinite(Number(item.lat)) ? `${Number(item.lat).toFixed(1)}, ${Number(item.lng).toFixed(1)}` : "世界市場");
     const direction = item.direction === "up" ? "上方向" : item.direction === "down" ? "下方向" : "方向監視";
@@ -1438,10 +1461,10 @@ function renderMap2d(events, centers, alerts) {
     positionCounts.set(key, collisionIndex + 1);
     const left = Math.max(4, Math.min(96, ((lng + 180) / 360) * 100 + collisionIndex * 3.2));
     const top = Math.max(25, Math.min(82, ((90 - lat) / 180) * 100 + collisionIndex * 4));
-    const levelLabel = item.level === "critical" ? "赤 / 警報級" : item.level === "warning" ? "黄 / 異変" : "青 / 異常なし";
+    const levelLabel = item.level === "critical" ? "赤 / 警報級" : item.level === "warning" ? "黄 / 異変" : item.level === "watch" ? "青 / 監視" : "青 / 異常なし";
     const timeLabel = timestamp ? new Date(timestamp).toLocaleString("ja-JP") : "監視中";
     const tooltipSide = left > 70 ? " tooltip-left" : "";
-    return `<button type="button" class="map-marker-pole ${item.level}${tooltipSide}" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-level="${item.level}" data-title="${escapeMarkup(item.label)}" data-detail="${escapeMarkup(item.detail)}" data-meta="${escapeMarkup(`${sourceLocation} / ${direction} / ${timeLabel}`)}" title="${escapeMarkup(`${levelLabel}: ${item.label} - ${item.detail}`)}" aria-label="${escapeMarkup(`${levelLabel} ${item.label}。${item.detail}。${sourceLocation}。${direction}。${timeLabel}`)}"><i></i><b>${item.level === "critical" ? "警報" : item.level === "warning" ? "異変" : "正常"}</b><span class="map-marker-tooltip" role="tooltip"><strong>${escapeMarkup(item.label)}</strong><span>${escapeMarkup(levelLabel)} / ${escapeMarkup(sourceLocation)}</span><small>${escapeMarkup(item.detail)}</small><em>${escapeMarkup(`${direction} / ${timeLabel}`)}</em></span></button>`;
+    return `<button type="button" class="map-marker-pole ${item.level}${tooltipSide}" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-level="${item.level}" data-title="${escapeMarkup(item.label)}" data-detail="${escapeMarkup(item.detail)}" data-meta="${escapeMarkup(`${sourceLocation} / ${direction} / ${timeLabel}`)}" title="${escapeMarkup(`${levelLabel}: ${item.label} - ${item.detail}`)}" aria-label="${escapeMarkup(`${levelLabel} ${item.label}。${item.detail}。${sourceLocation}。${direction}。${timeLabel}`)}"><i></i><b>${item.level === "critical" ? "警報" : item.level === "warning" ? "異変" : item.level === "watch" ? "監視" : "正常"}</b><span class="map-marker-tooltip" role="tooltip"><strong>${escapeMarkup(item.label)}</strong><span>${escapeMarkup(levelLabel)} / ${escapeMarkup(sourceLocation)}</span><small>${escapeMarkup(item.detail)}</small><em>${escapeMarkup(`${direction} / ${timeLabel}`)}</em></span></button>`;
   }).join("");
 }
 
@@ -3944,6 +3967,8 @@ function renderGeopoliticalRisk(data) {
   geopoliticalRiskPanelEl.className = `geopolitical-risk-wrap ${tone}`;
   geopoliticalRiskStatusEl.textContent = `${risk.level || "平常"} / リスク ${score}`;
   const counts = risk.counts || {};
+  const validation = risk.validation || {};
+  const reactionText = (reaction) => reaction ? `${reaction.label} ${signedNumber(reaction.movePct, 4, "%")}` : "市場反応を照合中";
   geopoliticalRiskEl.innerHTML = `
     <div class="geopolitical-risk-summary">
       <div><span>総合リスク</span><strong>${score}/100</strong><small>${risk.level || "平常"}</small></div>
@@ -3951,10 +3976,15 @@ function renderGeopoliticalRisk(data) {
       <div><span>デモ・騒乱</span><strong>${counts.protest || 0}件</strong><small>抗議・政情不安</small></div>
       <div><span>選挙・投票</span><strong>${counts.election || 0}件</strong><small>政策転換リスク</small></div>
     </div>
+    <div class="geopolitical-validation-grid">
+      <div><span>15分後の実変動</span><strong>${validation.m15?.samples || 0}件</strong><small>平均絶対変動 ${validation.m15?.averageAbsoluteMovePct == null ? "蓄積中" : `${Number(validation.m15.averageAbsoluteMovePct).toFixed(4)}%`}</small></div>
+      <div><span>60分後の実変動</span><strong>${validation.m60?.samples || 0}件</strong><small>平均絶対変動 ${validation.m60?.averageAbsoluteMovePct == null ? "蓄積中" : `${Number(validation.m60.averageAbsoluteMovePct).toFixed(4)}%`}</small></div>
+      <div><span>予測採用状態</span><strong>${validation.status || "影検証中"}</strong><small>地政学だけで方向を決めません</small></div>
+    </div>
     <div class="geopolitical-event-list">${(risk.latest || []).map((item) => `<a href="${item.url || "#"}" target="_blank" rel="noreferrer" class="${item.severity >= 70 ? "critical" : item.severity >= 45 ? "warning" : "watch"}">
       <div><span>${item.typeLabel || "地政学"} / ${item.regionLabel || "地域確認中"}</span><time>${formatTime(item.capturedAt || item.publishedAt)}</time></div>
       <strong>${item.title || "情勢を確認中"}</strong>
-      <small>深刻度 ${item.severity || 0} / 現在リスク ${Number(item.riskScore || 0).toFixed(1)} / ${item.marketChannel || "市場初動を確認中"}</small>
+      <small>深刻度 ${item.severity || 0} / 現在リスク ${Number(item.riskScore || 0).toFixed(1)} / ${item.marketChannel || "市場初動を確認中"}<br>15分: ${reactionText(item.reaction15m)} / 60分: ${reactionText(item.reaction60m)}</small>
     </a>`).join("") || `<div class="geopolitical-risk-empty">直近48時間に高信頼の地政学イベントは確認されていません。</div>`}</div>
     <p class="geopolitical-risk-method">${risk.method || "地政学ニュースを監視しています。"}</p>
   `;

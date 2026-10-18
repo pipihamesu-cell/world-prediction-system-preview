@@ -1961,8 +1961,10 @@ function renderCotAnalysis(cot) {
     return;
   }
 
-  const leveraged = cot.groups?.leveragedFunds || {};
-  const assetManager = cot.groups?.assetManager || {};
+  const leveraged = cot.layers?.leveragedFunds || cot.groups?.leveragedFunds || {};
+  const assetManager = cot.layers?.assetManager || cot.groups?.assetManager || {};
+  const legacySpeculators = cot.layers?.legacySpeculators || {};
+  const crowdingRisk = cot.crowdingRisk || {};
   const longShare = Math.max(0, Math.min(100, Number(cot.longShare || 0) * 100));
   const shortShare = Math.max(0, Math.min(100, Number(cot.shortShare || 0) * 100));
   const isNetLong = Number(cot.netLong || 0) > 0;
@@ -1979,7 +1981,7 @@ function renderCotAnalysis(cot) {
   const zeroY = 92 - ((0 - historyMin) / historySpan) * 80;
   cotAnalysisEl.innerHTML = `
     <a class="cot-main ${tone}" href="${cot.url}" target="_blank" rel="noreferrer">
-      <span>週次大口方向</span>
+      <span>4時間・日足の短期投機筋方向</span>
       <strong>${cot.verdict}</strong>
       <small>${cot.detail}</small>
     </a>
@@ -2004,22 +2006,23 @@ function renderCotAnalysis(cot) {
         <div class="cot-history-head">
           <div><span>ネットポジション推移</span><strong>直近${cotHistory.length}週</strong></div>
           <div><span>4週変化</span><strong class="${Number(cot.fourWeekChange || 0) >= 0 ? "up" : "down"}">${Number(cot.fourWeekChange || 0) >= 0 ? "+" : ""}${Number(cot.fourWeekChange || 0).toLocaleString("ja-JP")}枚</strong></div>
-          <div><span>過去分布</span><strong class="${cot.extreme ? "alert" : ""}">${Number(cot.zScore || 0).toFixed(2)}σ ${cot.extreme ? "極端値" : "通常圏"}</strong></div>
+          <div><span>過密反転リスク</span><strong class="${crowdingRisk.active ? "alert" : ""}">${crowdingRisk.label || (cot.extreme ? "極端値" : "通常圏")}</strong><small>過去分布 ${Math.round(Number(crowdingRisk.percentile ?? 0.5) * 100)}%位置</small></div>
           <div><span>時系列検証</span><strong class="${cot.calibration?.active ? "up" : ""}">${cot.calibration?.testSamples ? `${Math.round(Number(cot.calibration.hitRate || 0) * 100)}%` : "準備中"}</strong><small>${cot.calibration?.status || "検証待ち"} / ${cot.calibration?.testSamples || 0}件 / 95%下限 ${cot.calibration?.confidenceLower !== undefined ? `${Math.round(Number(cot.calibration.confidenceLower) * 100)}%` : "--"}</small></div>
         </div>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="CFTCネットポジション20週推移">
           <line x1="0" y1="${zeroY.toFixed(2)}" x2="100" y2="${zeroY.toFixed(2)}"></line>
           <polyline points="${historyPoints}"></polyline>
         </svg>
-        <small>${new Date(cotHistory[0].date).toLocaleDateString("ja-JP")} → ${new Date(cotHistory.at(-1).date).toLocaleDateString("ja-JP")} / CFTC週次確定値 / ${cot.calibration?.method || "検証を準備中"}</small>
+        <small>${new Date(cotHistory[0].date).toLocaleDateString("ja-JP")} → ${new Date(cotHistory.at(-1).date).toLocaleDateString("ja-JP")} / 短期投機筋の週次推移 / 公表後のみ検証利用 / ${cot.calibration?.method || "検証を準備中"}</small>
       </div>
     ` : ""}
     <div class="cot-grid">
-      <div><span>投機筋ネット</span><strong>${Number(cot.speculativeNet || 0).toLocaleString("ja-JP")}枚</strong><small>変化 ${Number(cot.speculativeChange || 0).toLocaleString("ja-JP")}枚</small></div>
-      <div><span>建玉比率</span><strong>${Math.round(Number(cot.netPct || 0) * 1000) / 10}%</strong><small>混み具合 ${Math.round(Number(cot.crowding || 0) * 100)}%</small></div>
-      <div><span>週間ネットフロー</span><strong>${Number(cot.speculativeChange || 0) >= 0 ? "+" : ""}${Number(cot.speculativeChange || 0).toLocaleString("ja-JP")}枚</strong><small>ロング変化 − ショート変化</small></div>
-      <div><span>レバレッジファンド</span><strong>${Number(leveraged.net || 0).toLocaleString("ja-JP")}枚</strong><small>Long ${Number(leveraged.long || 0).toLocaleString("ja-JP")} / Short ${Number(leveraged.short || 0).toLocaleString("ja-JP")}</small></div>
-      <div><span>アセットマネージャー</span><strong>${Number(assetManager.net || 0).toLocaleString("ja-JP")}枚</strong><small>Long ${Number(assetManager.long || 0).toLocaleString("ja-JP")} / Short ${Number(assetManager.short || 0).toLocaleString("ja-JP")}</small></div>
+      <div><span>短期投機筋</span><strong>${Number(leveraged.net ?? cot.speculativeNet ?? 0).toLocaleString("ja-JP")}枚</strong><small>4時間・日足 / 前週変化 ${Number(leveraged.netChange ?? cot.speculativeChange ?? 0).toLocaleString("ja-JP")}</small></div>
+      <div><span>従来区分の投機筋</span><strong>${Number(legacySpeculators.net || 0).toLocaleString("ja-JP")}枚</strong><small>方向確認 / 前週変化 ${Number(legacySpeculators.netChange || 0).toLocaleString("ja-JP")}</small></div>
+      <div><span>長期運用会社</span><strong>${Number(assetManager.net || 0).toLocaleString("ja-JP")}枚</strong><small>週足・月足 / 前週変化 ${Number(assetManager.netChange || 0).toLocaleString("ja-JP")}</small></div>
+      <div><span>短期投機筋の建玉比率</span><strong>${Math.round(Number(leveraged.netPct ?? cot.netPct ?? 0) * 1000) / 10}%</strong><small>${crowdingRisk.label || `混み具合 ${Math.round(Number(cot.crowding || 0) * 100)}%`}</small></div>
+      <div><span>4時間方向圧力</span><strong class="${Number(cot.horizonSignals?.h4?.pressure || 0) >= 0 ? "up" : "down"}">${Number(cot.horizonSignals?.h4?.pressure || 0) >= 0 ? "+" : ""}${Number(cot.horizonSignals?.h4?.pressure || 0).toFixed(2)}</strong><small>${cot.horizonSignals?.h4?.role || "レバレッジファンド主導"}</small></div>
+      <div><span>月足方向圧力</span><strong class="${Number(cot.horizonSignals?.mo1?.pressure || 0) >= 0 ? "up" : "down"}">${Number(cot.horizonSignals?.mo1?.pressure || 0) >= 0 ? "+" : ""}${Number(cot.horizonSignals?.mo1?.pressure || 0).toFixed(2)}</strong><small>${cot.horizonSignals?.mo1?.role || "資産運用会社主導"}</small></div>
     </div>
   `;
 }

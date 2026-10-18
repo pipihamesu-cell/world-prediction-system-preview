@@ -8,6 +8,8 @@ const APP_SHELL = [
   "mobile-native.js",
   "current-status-assistant.js",
   "manifest.webmanifest",
+  "icon-192.png",
+  "icon-512.png",
   "icon.svg"
 ].map(scopedUrl);
 const NETWORK_FIRST = new Set(["", "index.html", "app.js", "styles.css"].map(scopedUrl));

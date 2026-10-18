@@ -7372,3 +7372,67 @@ body.design-command .dashboard { grid-column: 2; grid-row: 7; }
   .shell,
   body.design-command .shell { grid-template-rows: auto 46px auto auto auto auto auto; }
 }
+
+/* Operational readiness stays above all trading controls. */
+.operational-readiness-bar {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  min-width: 0;
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: minmax(260px, .85fr) minmax(0, 2.4fr);
+  align-items: stretch;
+  position: relative;
+  z-index: 23;
+  border-bottom: 1px solid var(--line);
+  background: #081217;
+  box-shadow: inset 4px 0 0 var(--amber);
+}
+.operational-readiness-bar.ready { box-shadow: inset 4px 0 0 var(--green); }
+.operational-readiness-bar.blocked { box-shadow: inset 4px 0 0 var(--red); background: #1b0c0e; }
+.operational-readiness-bar.preview { box-shadow: inset 4px 0 0 var(--amber); background: #191508; }
+.operational-readiness-lead { min-width: 0; display: grid; align-content: center; gap: 2px; padding: 7px 15px; border-right: 1px solid var(--line); }
+.operational-readiness-lead span { color: var(--muted); font-size: 9px; font-weight: 900; }
+.operational-readiness-lead strong { color: var(--text); font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+.operational-readiness-bar.ready .operational-readiness-lead strong { color: var(--green); }
+.operational-readiness-bar.blocked .operational-readiness-lead strong { color: #ff8b87; }
+.operational-readiness-bar.preview .operational-readiness-lead strong { color: #ffe28a; }
+.operational-readiness-checks { min-width: 0; display: flex; align-items: center; gap: 7px; padding: 7px 12px; overflow-x: auto; scrollbar-width: thin; }
+.operational-readiness-checks span { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 5px 8px; border: 1px solid var(--line); color: var(--muted); background: rgba(255,255,255,.025); font-size: 10px; font-weight: 800; }
+.operational-readiness-checks i { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 7px currentColor; }
+.operational-readiness-checks .passed { color: #b9efd2; border-color: rgba(70,213,140,.25); }
+.operational-readiness-checks .passed i { background: var(--green); }
+.operational-readiness-checks .failed { color: #ffb1ae; border-color: rgba(255,107,104,.35); }
+.operational-readiness-checks .failed i { background: var(--red); }
+
+.shell,
+body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto auto; }
+.paper-position-bar { grid-row: 5; }
+.full-width-chart-stack { grid-row: 6; }
+.full-width-gate-stack { grid-row: 7; }
+.left-rail { grid-row: 8; }
+.dashboard,
+body.design-command .dashboard { grid-row: 8; }
+
+@media (max-width: 900px) {
+  .shell,
+  body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto auto; }
+  .operational-readiness-bar { grid-row: 4; grid-template-columns: minmax(0, 1fr); }
+  .operational-readiness-lead { border-right: 0; border-bottom: 1px solid var(--line); }
+  .paper-position-bar { grid-row: 5; }
+  .full-width-chart-stack { grid-row: 6; }
+  .full-width-gate-stack { grid-column: 1; grid-row: 7; }
+  .left-rail { grid-column: 1; grid-row: 8; }
+  .dashboard,
+  body.design-command .dashboard { grid-column: 1; grid-row: 9; }
+}
+
+@media (max-width: 680px) {
+  .shell,
+  body.design-command .shell { grid-template-rows: auto 46px auto auto auto auto auto auto; }
+  .operational-readiness-lead { padding: 8px 11px; }
+  .operational-readiness-lead span { font-size: 10px; }
+  .operational-readiness-lead strong { font-size: 14px; }
+  .operational-readiness-checks { padding: 7px 10px; }
+  .operational-readiness-checks span { min-height: 32px; font-size: 11px; }
+}

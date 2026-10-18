@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=165" />
+    <link rel="stylesheet" href="./styles.css?v=169" />
   </head>
   <body>
     <main class="shell">
@@ -38,6 +38,15 @@
         <div><span>最新分析</span><strong id="mobile-analysis-time">--</strong></div>
         <div><span>継続台帳</span><strong id="mobile-ledger-status">確認中</strong></div>
         <div><span>次回学習</span><strong id="mobile-next-learning">計算中</strong></div>
+      </section>
+      <section id="operational-readiness-bar" class="operational-readiness-bar checking" aria-label="本格稼働可否" aria-live="polite">
+        <div class="operational-readiness-lead">
+          <span>OPERATION GATE</span>
+          <strong id="operational-readiness-state">稼働条件を確認中</strong>
+        </div>
+        <div id="operational-readiness-checks" class="operational-readiness-checks">
+          <span>価格</span><span>照合</span><span>予測</span><span>学習</span><span>保存</span><span>仮想口座</span>
+        </div>
       </section>
       <a id="paper-position-bar" class="paper-position-bar waiting" href="#paper-trading-panel" aria-label="現在の仮想取引状況を確認">
         <div class="paper-position-lead">
@@ -685,6 +694,6 @@
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="./mobile-native.js?v=167"></script>
-    <script src="./app.js?v=166"></script>
+    <script src="./app.js?v=169"></script>
   </body>
 </html>

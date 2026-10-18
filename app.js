@@ -25,6 +25,9 @@ const mobileDataFreshnessEl = document.getElementById("mobile-data-freshness");
 const mobileAnalysisTimeEl = document.getElementById("mobile-analysis-time");
 const mobileLedgerStatusEl = document.getElementById("mobile-ledger-status");
 const mobileNextLearningEl = document.getElementById("mobile-next-learning");
+const operationalReadinessBarEl = document.getElementById("operational-readiness-bar");
+const operationalReadinessStateEl = document.getElementById("operational-readiness-state");
+const operationalReadinessChecksEl = document.getElementById("operational-readiness-checks");
 const riskValueEl = document.getElementById("risk-value");
 const riskMeterEl = document.getElementById("risk-meter");
 const refreshButton = document.getElementById("refresh");
@@ -3110,6 +3113,40 @@ function renderMobileLearningStatus(snapshot) {
   }
 }
 
+function renderOperationalReadiness(snapshot) {
+  if (!operationalReadinessBarEl || !operationalReadinessStateEl || !operationalReadinessChecksEl) return;
+  const generatedAt = Date.parse(snapshot?.generatedAt || "");
+  const ageSeconds = Number.isFinite(generatedAt)
+    ? Math.max(0, Math.round((Date.now() - generatedAt) / 1000))
+    : Infinity;
+  const gate = snapshot?.operationalGate || {};
+  const checks = Array.isArray(gate.checks) ? gate.checks : [];
+  const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+
+  if (STATIC_PREVIEW_MODE) {
+    operationalReadinessBarEl.className = "operational-readiness-bar preview";
+    operationalReadinessStateEl.textContent = "確認版・保存済みデータ（新規発注判断には使用しない）";
+  } else {
+    const ready = gate.ready === true && ageSeconds <= 6 * 60;
+    operationalReadinessBarEl.className = `operational-readiness-bar ${ready ? "ready" : "blocked"}`;
+    operationalReadinessStateEl.textContent = ready
+      ? "本格稼働条件を通過"
+      : ageSeconds > 6 * 60
+        ? "停止：画面データが6分以上更新されていません"
+        : gate.label || "停止：稼働条件を確認してください";
+  }
+
+  if (!checks.length) {
+    operationalReadinessChecksEl.innerHTML = `<span class="failed">${STATIC_PREVIEW_MODE ? "公開確認用スナップショット" : "詳細判定を同期中"}</span>`;
+    return;
+  }
+  operationalReadinessChecksEl.innerHTML = checks.map((check) => `
+    <span class="${check.passed ? "passed" : "failed"}" title="${escape(check.detail || "")}">
+      <i aria-hidden="true"></i>${escape(check.label || check.key)}
+    </span>
+  `).join("");
+}
+
 function renderFearGreed(fearGreed) {
   if (!fearGreed) return;
   const score = Number(fearGreed.score || 0);
@@ -4492,6 +4529,7 @@ async function loadSnapshot(forceFull = false) {
     if (NATIVE_APP_MODE) globalThis.WpsNative.syncTradeNotifications(snapshot).catch(() => undefined);
     renderPairDecisionDeck(snapshot);
     renderMobileLearningStatus(snapshot);
+    renderOperationalReadiness(snapshot);
     renderMarketTape(snapshot.markets);
     renderMapLiveFx(snapshot.markets, snapshot.generatedAt);
     renderMarkets(snapshot.markets);

@@ -1779,7 +1779,7 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
   const cloud = access.cloud || {};
   const cloudUrl = cloud.publicUrl || "";
   const lanUrl = (access.lanUrls || [])[0] || "";
-  const currentUrl = location.origin + "/";
+  const currentUrl = new URL("./", location.href).href;
   const isHttps = location.protocol === "https:";
   const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone;
   const sleepIndependent = Boolean(cloud.sleepIndependent);
@@ -4664,6 +4664,15 @@ window.speechSynthesis?.addEventListener?.("voiceschanged", updateVoiceUi);
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
+  if (latestSnapshot?.access) {
+    renderAndroidAccess(latestSnapshot.access, latestSnapshot.highConfidenceNotification);
+  }
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  if (latestSnapshot?.access) {
+    renderAndroidAccess(latestSnapshot.access, latestSnapshot.highConfidenceNotification);
+  }
 });
 if (!NATIVE_APP_MODE && "serviceWorker" in navigator && window.isSecureContext) {
   navigator.serviceWorker.register("./service-worker.js", { scope: "./" })

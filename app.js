@@ -1965,6 +1965,8 @@ function renderCotAnalysis(cot) {
   const assetManager = cot.layers?.assetManager || cot.groups?.assetManager || {};
   const legacySpeculators = cot.layers?.legacySpeculators || {};
   const crowdingRisk = cot.crowdingRisk || {};
+  const cotForward = cot.forwardValidation || {};
+  const cotForwardLayers = Object.values(cotForward.layers || {});
   const longShare = Math.max(0, Math.min(100, Number(cot.longShare || 0) * 100));
   const shortShare = Math.max(0, Math.min(100, Number(cot.shortShare || 0) * 100));
   const isNetLong = Number(cot.netLong || 0) > 0;
@@ -2023,6 +2025,30 @@ function renderCotAnalysis(cot) {
       <div><span>短期投機筋の建玉比率</span><strong>${Math.round(Number(leveraged.netPct ?? cot.netPct ?? 0) * 1000) / 10}%</strong><small>${crowdingRisk.label || `混み具合 ${Math.round(Number(cot.crowding || 0) * 100)}%`}</small></div>
       <div><span>4時間方向圧力</span><strong class="${Number(cot.horizonSignals?.h4?.pressure || 0) >= 0 ? "up" : "down"}">${Number(cot.horizonSignals?.h4?.pressure || 0) >= 0 ? "+" : ""}${Number(cot.horizonSignals?.h4?.pressure || 0).toFixed(2)}</strong><small>${cot.horizonSignals?.h4?.role || "レバレッジファンド主導"}</small></div>
       <div><span>月足方向圧力</span><strong class="${Number(cot.horizonSignals?.mo1?.pressure || 0) >= 0 ? "up" : "down"}">${Number(cot.horizonSignals?.mo1?.pressure || 0) >= 0 ? "+" : ""}${Number(cot.horizonSignals?.mo1?.pressure || 0).toFixed(2)}</strong><small>${cot.horizonSignals?.mo1?.role || "資産運用会社主導"}</small></div>
+    </div>
+    <div class="cot-forward-ledger" id="cot-forward-ledger">
+      <div class="cot-forward-head">
+        <div><span>COT層別 前向き成績台帳</span><strong>${cotForward.settledReports || 0}公表を照合済み</strong></div>
+        <small>${cotForward.policy || "次回公表から前向き検証を開始"}</small>
+      </div>
+      <div class="cot-forward-grid">
+        ${cotForwardLayers.length ? cotForwardLayers.map((layer) => `
+          <article>
+            <h4>${layer.label}</h4>
+            ${["h4", "d1"].map((key) => {
+              const row = layer.horizons?.[key] || {};
+              const rate = row.hitRate === null || row.hitRate === undefined ? "--" : `${Math.round(Number(row.hitRate) * 100)}%`;
+              const net = row.averageNetPct === null || row.averageNetPct === undefined ? "--" : `${Number(row.averageNetPct) >= 0 ? "+" : ""}${Number(row.averageNetPct).toFixed(3)}%`;
+              return `<div class="cot-forward-row ${row.profitable ? "up" : row.harmful ? "down" : "pending"}">
+                <span>${row.label || (key === "h4" ? "4時間" : "24時間")}</span>
+                <strong>${rate}</strong>
+                <b>${net}</b>
+                <small>${row.samples || 0}/${cotForward.minimumSamples || 30}件・${row.status || "検証待ち"}</small>
+              </div>`;
+            }).join("")}
+          </article>
+        `).join("") : `<p>次回CFTC公表直後から、同一レポートの重複を除いて4時間後・24時間後を記録します。</p>`}
+      </div>
     </div>
   `;
 }

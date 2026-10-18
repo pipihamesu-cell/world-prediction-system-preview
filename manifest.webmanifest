@@ -2,8 +2,9 @@
   "name": "世界予測システム",
   "short_name": "世界予測",
   "description": "EUR/USD、重要ニュース、経済指標、世界リスクを監視する予測ダッシュボード",
-  "start_url": "/?source=pwa",
-  "scope": "/",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "browser"],
   "background_color": "#08110f",
@@ -15,10 +16,10 @@
       "name": "EUR/USD司令室",
       "short_name": "EUR/USD",
       "description": "EUR/USDの予測、重要指標、COT大口分析を開きます。",
-      "url": "/?source=pwa#eurusd-command-panel",
+      "url": "./?source=pwa#eurusd-command-panel",
       "icons": [
         {
-          "src": "/icon.svg",
+          "src": "./icon.svg",
           "sizes": "512x512",
           "type": "image/svg+xml"
         }
@@ -27,7 +28,7 @@
   ],
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "./icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

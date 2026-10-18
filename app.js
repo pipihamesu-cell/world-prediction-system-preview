@@ -4665,12 +4665,12 @@ window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
 });
-if (!STATIC_PREVIEW_MODE && "serviceWorker" in navigator && window.isSecureContext) {
-  navigator.serviceWorker.register("/service-worker.js")
+if (!NATIVE_APP_MODE && "serviceWorker" in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
     .then((registration) => {
       serviceWorkerRegistration = registration;
       updateNotificationUi();
-      if (notificationsEnabled && Notification.permission === "granted") {
+      if (!STATIC_PREVIEW_MODE && notificationsEnabled && Notification.permission === "granted") {
         enableBackgroundPush().catch(() => undefined);
       }
     })

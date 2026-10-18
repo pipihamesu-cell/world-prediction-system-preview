@@ -1,14 +1,16 @@
-const CACHE_NAME = "world-prediction-system-v166";
+const CACHE_NAME = "world-prediction-system-v167";
+const scopedUrl = (path = "") => new URL(path, self.registration.scope).pathname;
 const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/styles.css",
-  "/app.js",
-  "/mobile-native.js",
-  "/current-status-assistant.js",
-  "/manifest.webmanifest",
-  "/icon.svg"
-];
+  "",
+  "index.html",
+  "styles.css",
+  "app.js",
+  "mobile-native.js",
+  "current-status-assistant.js",
+  "manifest.webmanifest",
+  "icon.svg"
+].map(scopedUrl);
+const NETWORK_FIRST = new Set(["", "index.html", "app.js", "styles.css"].map(scopedUrl));
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -24,8 +26,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith("/api/")) return;
-  if (["/app.js", "/styles.css", "/index.html", "/"].includes(url.pathname)) {
+  if (url.pathname.startsWith(scopedUrl("api/"))) return;
+  if (NETWORK_FIRST.has(url.pathname)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -44,7 +46,7 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification?.data?.url || "/";
+  const targetUrl = event.notification?.data?.url || self.registration.scope;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
@@ -61,11 +63,11 @@ self.addEventListener("notificationclick", (event) => {
 
 function addSirenRequest(targetUrl) {
   try {
-    const url = new URL(targetUrl || "/", self.location.origin);
+    const url = new URL(targetUrl || self.registration.scope, self.registration.scope);
     url.searchParams.set("siren", "1");
     return url.toString();
   } catch {
-    return "/?siren=1";
+    return new URL("?siren=1", self.registration.scope).toString();
   }
 }
 
@@ -79,13 +81,13 @@ self.addEventListener("push", (event) => {
     requireInteraction: data.severity === "critical",
     silent: false,
     vibrate: data.severity === "critical" ? [400, 180, 400, 180, 700] : [220, 120, 220],
-    icon: "/icon.svg",
-    badge: "/icon.svg",
+    icon: scopedUrl("icon.svg"),
+    badge: scopedUrl("icon.svg"),
     actions: [{ action: "open", title: "詳細を表示" }],
     data: {
       url: data.severity === "critical"
         ? addSirenRequest(data.url)
-        : data.url || "/",
+        : data.url || self.registration.scope,
       type: data.type || "alert"
     }
   }));

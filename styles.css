@@ -6526,6 +6526,7 @@ body.design-command .risk-strip { right: 14px; width: 290px; }
 }
 
 .left-intelligence-stack > :is(.central-bank-tone-wrap,.fundamental-news-wrap,.geopolitical-risk-wrap,.cot-wrap,.options-wrap) { grid-column: auto; height: 100%; }
+.left-intelligence-stack > .cot-wrap { grid-column: 1 / -1; height: auto; }
 .left-intelligence-stack > :is(.fx-news-wrap,.important-info-wrap,.central-bank-tone-wrap,.fundamental-news-wrap,.geopolitical-risk-wrap,.cot-wrap,.options-wrap) { align-self: stretch; border-radius: 4px; box-shadow: 0 12px 28px rgba(0,0,0,.18); }
 
 .left-intelligence-columns { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; align-items: start; }

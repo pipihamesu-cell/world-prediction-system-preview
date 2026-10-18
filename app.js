@@ -210,6 +210,7 @@ let soundEnabled = localStorage.getItem("worldPredictionSound") === "on";
 let notificationsEnabled = localStorage.getItem("worldPredictionNotifications") === "on";
 let notificationStatusMessage = "";
 let notificationBusy = false;
+let nativePushStatus = null;
 let voiceEnabled = localStorage.getItem("worldPredictionVoice") === "on";
 let voiceMode = localStorage.getItem("worldPredictionVoiceMode") || "important";
 let rebalanceIntelligenceRail = () => {};
@@ -1782,24 +1783,32 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
   const isHttps = location.protocol === "https:";
   const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone;
   const sleepIndependent = Boolean(cloud.sleepIndependent);
-  const notifyReady = notificationSupported() && notificationsEnabled && Notification.permission === "granted";
-  const notificationPermission = "Notification" in window ? Notification.permission : "unsupported";
+  const nativePushReady = NATIVE_APP_MODE && ["instant-ready", "server-waiting-firebase", "registering"].includes(nativePushStatus?.state);
+  const notifyReady = nativePushReady || (notificationSupported() && notificationsEnabled && Notification.permission === "granted");
+  const notificationPermission = NATIVE_APP_MODE
+    ? nativePushStatus?.state === "permission-denied" ? "denied" : nativePushReady ? "granted" : "default"
+    : "Notification" in window ? Notification.permission : "unsupported";
   const notificationHelp = notificationPermission === "denied"
     ? "通知が拒否済みです。Android Chromeの設定 → サイトの設定 → 通知 → world-prediction-system.onrender.com を許可してください。"
     : !notificationSupported()
-      ? "ChromeでHTTPS公開URLを直接開いてください。LINE・ChatGPTなどのアプリ内ブラウザでは通知を登録できない場合があります。"
+      ? NATIVE_APP_MODE ? "Androidアプリの通知登録を確認しています。" : "ChromeでHTTPS公開URLを直接開いてください。LINE・ChatGPTなどのアプリ内ブラウザでは通知を登録できない場合があります。"
       : notificationStatusMessage || "ボタンを押すとAndroidの通知許可画面が表示されます。";
   const voiceReady = voiceSupported() && voiceEnabled;
   const installReady = Boolean(deferredInstallPrompt) || standalone;
   const publicReady = sleepIndependent || /^https:\/\//.test(remoteUrl) || isHttps;
   const highConfidenceReady = notifyReady && Number(highConfidenceNotification.subscriptions || 0) > 0;
   const pushDelivery = highConfidenceNotification.delivery || {};
+  const nativeDelivery = highConfidenceNotification.native?.delivery || {};
   const registrationTest = highConfidenceNotification.registrationTest || {};
   const serverPushDetail = registrationTest.attemptedAt
     ? `${registrationTest.result || "テスト結果確認中"} / ${formatTime(registrationTest.attemptedAt)}`
     : pushDelivery.attemptedAt
       ? `${pushDelivery.result || "送信結果確認中"} / ${formatTime(pushDelivery.attemptedAt)}`
-      : "テスト通知はまだ送信されていません。通知を有効化すると1回だけ届きます。";
+      : nativeDelivery.attemptedAt
+        ? `${nativeDelivery.result || "即時通知確認中"} / ${formatTime(nativeDelivery.attemptedAt)}`
+        : NATIVE_APP_MODE
+          ? nativePushStatus?.state === "instant-ready" ? "Firebase即時通知の端末登録済み" : "15分監視を継続しながら即時通知設定を確認中"
+          : "テスト通知はまだ送信されていません。通知を有効化すると1回だけ届きます。";
   androidAccessStatusEl.textContent = publicReady
     ? sleepIndependent ? "PCスリープ対応" : "ネット公開URLあり"
     : lanUrl ? "自宅Wi-Fi用URLあり" : "公開準備中";
@@ -1834,13 +1843,13 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
     </div>
     <div class="android-checklist">
       <div class="${publicReady ? "ok" : "warn"}"><strong>${publicReady ? "OK" : "要設定"}</strong><span>外出先URL</span><small>${publicReady ? "AndroidからURLで開けます" : "クラウド公開URLが必要です"}</small></div>
-      <div class="${notifyReady ? "ok" : "warn"}"><strong>${notifyReady ? "ON" : "OFF"}</strong><span>取引通知</span><small>${notificationSupported() ? "公式仮想取引の開始・終了だけを通知" : "HTTPS公開URLで有効化できます"}</small></div>
+      <div class="${notifyReady ? "ok" : "warn"}"><strong>${notifyReady ? "ON" : "OFF"}</strong><span>取引通知</span><small>${NATIVE_APP_MODE || notificationSupported() ? "公式仮想取引の開始・終了だけを通知" : "HTTPS公開URLで有効化できます"}</small></div>
       <div class="${voiceReady ? "ok" : "warn"}"><strong>${voiceReady ? "ON" : "OFF"}</strong><span>AI音声</span><small>${voiceSupported() ? "初回はタップで音声許可" : "この端末は音声非対応です"}</small></div>
       <div class="${standalone ? "ok" : installReady ? "warn" : "warn"}"><strong>${standalone ? "済" : "未"}</strong><span>ホーム画面</span><small>${deferredInstallPrompt ? "追加ボタンが使えます" : "Chromeのメニューから追加できます"}</small></div>
       <div class="${notifyReady ? "ok" : "warn"}"><strong>${notifyReady ? "ON" : "OFF"}</strong><span>開始・終了</span><small>約定値、ロット、決済値、損益を通知</small></div>
     </div>
     <div class="android-quick-actions">
-      <button type="button" data-enable-notify ${notificationSupported() && !notificationBusy ? "" : "disabled"}>${notificationBusy ? "登録中..." : notifyReady ? "通知を再登録" : "通知を有効化"}</button>
+      <button type="button" data-enable-notify ${(NATIVE_APP_MODE || notificationSupported()) && !notificationBusy ? "" : "disabled"}>${notificationBusy ? "登録中..." : notifyReady ? "通知を再登録" : "通知を有効化"}</button>
       <button type="button" data-test-notify ${notifyReady && !notificationBusy ? "" : "disabled"}>テスト通知を送る</button>
       <button type="button" data-enable-voice ${voiceSupported() ? "" : "disabled"}>AI音声を開始</button>
       <a href="${mainUrl || "#"}" target="_blank" rel="noreferrer">スマホ用URLを開く</a>
@@ -1848,7 +1857,7 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
     <div class="notification-feedback ${notifyReady ? "ok" : notificationPermission === "denied" ? "error" : "info"}" role="status">
       <strong>${notifyReady ? "通知登録済み" : notificationPermission === "denied" ? "通知が拒否されています" : "通知設定"}</strong>
       <span>${notificationHelp}</span>
-      <small>サーバー登録 ${Number(highConfidenceNotification.subscriptions || 0)}台 / ${serverPushDetail}</small>
+      <small>Web ${Number(highConfidenceNotification.subscriptions || 0)}台 / Android即時 ${Number(highConfidenceNotification.native?.devices || 0)}台 / ${serverPushDetail}</small>
     </div>
   `;
 
@@ -4174,6 +4183,21 @@ async function disableBackgroundPush() {
 }
 
 async function requestNotificationAccess() {
+  if (NATIVE_APP_MODE) {
+    try {
+      nativePushStatus = await globalThis.WpsNative.ensureRemotePushRegistration();
+      notificationsEnabled = nativePushStatus?.state !== "permission-denied";
+      notificationStatusMessage = notificationsEnabled
+        ? "Android通知を登録中です。公式仮想取引の開始・終了だけを通知します。"
+        : "Android設定で通知を許可してください。";
+    } catch (error) {
+      notificationsEnabled = false;
+      notificationStatusMessage = `Android通知登録に失敗しました: ${error.message || "通信エラー"}`;
+    }
+    localStorage.setItem("worldPredictionNotifications", notificationsEnabled ? "on" : "off");
+    updateNotificationUi();
+    return notificationsEnabled;
+  }
   if (!notificationSupported()) {
     notificationStatusMessage = "このブラウザでは通知を利用できません。Android版ChromeでHTTPS公開URLを直接開いてください。";
     return false;
@@ -4464,6 +4488,7 @@ async function loadSnapshot(forceFull = false) {
       };
     }
     const snapshot = latestSnapshot;
+    if (NATIVE_APP_MODE) nativePushStatus = await globalThis.WpsNative.getPushStatus().catch(() => nativePushStatus);
     if (NATIVE_APP_MODE) globalThis.WpsNative.syncTradeNotifications(snapshot).catch(() => undefined);
     renderPairDecisionDeck(snapshot);
     renderMobileLearningStatus(snapshot);
@@ -4738,7 +4763,7 @@ soundToggleEl.addEventListener("click", () => {
 });
 soundPreviewEl?.addEventListener("click", previewMarketSoundscape);
 notifyToggleEl?.addEventListener("click", async () => {
-  if (notificationsEnabled && Notification.permission === "granted") {
+  if (!NATIVE_APP_MODE && notificationsEnabled && Notification.permission === "granted") {
     notificationsEnabled = false;
     localStorage.setItem("worldPredictionNotifications", "off");
     await disableBackgroundPush().catch(() => undefined);

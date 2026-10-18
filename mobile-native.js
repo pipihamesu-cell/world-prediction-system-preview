@@ -4,11 +4,16 @@
   const plugins = capacitor?.Plugins || {};
   const preferences = plugins.Preferences;
   const localNotifications = plugins.LocalNotifications;
+  const pushNotifications = plugins.PushNotifications;
   const keys = {
     snapshot: "wps.mobile.snapshot.v1",
     position: "wps.mobile.position.v1",
     trade: "wps.mobile.trade.v1",
-    initialized: "wps.mobile.trade.initialized.v1"
+    initialized: "wps.mobile.trade.initialized.v1",
+    pushToken: "wps.mobile.push.token.v1",
+    pushApiUrl: "wps.mobile.push.api-url.v1",
+    pushAccessPin: "wps.mobile.push.access-pin.v1",
+    pushStatus: "wps.mobile.push.status.v1"
   };
 
   async function getValue(key) {
@@ -65,6 +70,75 @@
     return true;
   }
 
+  async function ensureNotificationPermission() {
+    if (!native || !localNotifications) return "unavailable";
+    const permission = await localNotifications.checkPermissions();
+    if (permission.display === "granted") return "granted";
+    const requested = await localNotifications.requestPermissions();
+    return requested.display || "denied";
+  }
+
+  function normalizedApiUrl(value) {
+    const raw = String(value || "").trim().replace(/\/+$/, "");
+    return /^https:\/\//i.test(raw) ? raw : "";
+  }
+
+  async function pushConnection() {
+    const configuredUrl = normalizedApiUrl(await getValue(keys.pushApiUrl));
+    const currentOrigin = /^https?:$/i.test(location.protocol) && location.hostname !== "localhost"
+      ? normalizedApiUrl(location.origin)
+      : "";
+    const urlPin = new URLSearchParams(location.search || "").get("pin") || "";
+    return {
+      apiUrl: configuredUrl || currentOrigin || "https://world-prediction-system.onrender.com",
+      pin: await getValue(keys.pushAccessPin) || urlPin
+    };
+  }
+
+  async function setPushConnection({ apiUrl, pin } = {}) {
+    const normalized = normalizedApiUrl(apiUrl);
+    if (apiUrl && !normalized) throw new Error("通知APIはHTTPS URLを指定してください");
+    if (normalized) await setValue(keys.pushApiUrl, normalized);
+    if (pin !== undefined) await setValue(keys.pushAccessPin, String(pin || ""));
+    return ensureRemotePushRegistration();
+  }
+
+  async function registerTokenWithServer(token) {
+    const connection = await pushConnection();
+    if (!connection.apiUrl || !connection.pin) {
+      await setValue(keys.pushStatus, JSON.stringify({ state: "waiting-connection", at: new Date().toISOString() }));
+      return { state: "waiting-connection" };
+    }
+    const response = await fetch(`${connection.apiUrl}/api/native-push/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-access-pin": connection.pin },
+      body: JSON.stringify({ token, platform: "android", appVersion: "0.3.1", deviceLabel: navigator.userAgent || "Android" })
+    });
+    if (!response.ok) throw new Error(`通知端末登録に失敗しました (${response.status})`);
+    const result = await response.json();
+    await setValue(keys.pushToken, token);
+    await setValue(keys.pushStatus, JSON.stringify({ state: result.configured ? "instant-ready" : "server-waiting-firebase", at: new Date().toISOString(), ...result }));
+    return result;
+  }
+
+  async function ensureRemotePushRegistration() {
+    if (!native || !pushNotifications) return { state: "unavailable" };
+    let permission = await pushNotifications.checkPermissions();
+    if (permission.receive !== "granted") permission = await pushNotifications.requestPermissions();
+    if (permission.receive !== "granted") {
+      await setValue(keys.pushStatus, JSON.stringify({ state: "permission-denied", at: new Date().toISOString() }));
+      return { state: "permission-denied" };
+    }
+    await pushNotifications.register();
+    return { state: "registering" };
+  }
+
+  async function getPushStatus() {
+    const raw = await getValue(keys.pushStatus);
+    if (!raw) return { state: pushNotifications ? "not-registered" : "unavailable" };
+    try { return JSON.parse(raw); } catch { return { state: "unknown" }; }
+  }
+
   async function syncTradeNotifications(snapshot) {
     if (!native || !snapshot?.paperTrading) return;
     const account = snapshot.paperTrading;
@@ -87,11 +161,37 @@
     if (target) location.hash = target.replace(/^#/, "");
   });
 
+  pushNotifications?.addListener?.("registration", (registration) => {
+    registerTokenWithServer(registration?.value || "").catch(async (error) => {
+      await setValue(keys.pushStatus, JSON.stringify({ state: "registration-error", message: error?.message || "通知登録失敗", at: new Date().toISOString() }));
+    });
+  });
+  pushNotifications?.addListener?.("registrationError", async (error) => {
+    await setValue(keys.pushStatus, JSON.stringify({ state: "registration-error", message: error?.error || error?.message || "FCM登録失敗", at: new Date().toISOString() }));
+  });
+  pushNotifications?.addListener?.("pushNotificationActionPerformed", (action) => {
+    const target = action?.notification?.data?.url || "#paper-trading-panel";
+    location.hash = target.replace(/^.*#/, "");
+  });
+
+  if (native && typeof globalThis.addEventListener === "function") {
+    globalThis.addEventListener("DOMContentLoaded", () => {
+      globalThis.setTimeout(() => {
+        ensureNotificationPermission().catch(() => {});
+        ensureRemotePushRegistration().catch(() => {});
+      }, 1200);
+    }, { once: true });
+  }
+
   globalThis.WpsNative = Object.freeze({
     isNative: native,
     snapshotUrl: "https://pipihamesu-cell.github.io/world-prediction-system-preview/preview-snapshot.json",
     loadSnapshot,
     saveSnapshot,
-    syncTradeNotifications
+    syncTradeNotifications,
+    ensureNotificationPermission,
+    ensureRemotePushRegistration,
+    setPushConnection,
+    getPushStatus
   });
 }());

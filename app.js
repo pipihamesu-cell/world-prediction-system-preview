@@ -259,7 +259,7 @@ function initResponsiveIntelligenceRail() {
     [".central-bank-tone-wrap", "right"],
     [".fundamental-news-wrap", "right"],
     [".geopolitical-risk-wrap", "right"],
-    [".cot-wrap", "left"],
+    [".cot-wrap", "wide"],
     [".options-wrap", "right"],
     [".swing-compass-wrap", "left"],
     [".currency-strength-wrap", "left"],

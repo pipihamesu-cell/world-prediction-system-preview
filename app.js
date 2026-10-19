@@ -65,6 +65,7 @@ const countryRiskEl = document.getElementById("country-risk");
 const shockLogEl = document.getElementById("shock-log");
 const shockLogCountEl = document.getElementById("shock-log-count");
 const shockShadowSummaryEl = document.getElementById("shock-shadow-summary");
+const externalSignalShadowEl = document.getElementById("external-signal-shadow");
 const shockSearchInputEl = document.getElementById("shock-search-input");
 const shockDirectionFilterEl = document.getElementById("shock-direction-filter");
 const timeMachineEl = document.getElementById("time-machine");
@@ -1661,7 +1662,7 @@ function renderShockLog(items, shadowReplay) {
       ? "--" : `${Math.round(shadowReplay.explanationRate * 100)}%`;
     const best = shadowReplay?.factors?.[0];
     shockShadowSummaryEl.innerHTML = shadowReplay
-      ? `<strong>後知恵なし影検証</strong><span>${shadowReplay.status}</span><span>説明可能 ${rate}</span><span>${best ? `最多要因 ${best.label} ${best.samples}件` : "要因標本なし"}</span><small>過去再生は仮説選別専用。本番重みは前向き40件で判定</small>`
+      ? `<strong>後知恵なし影検証</strong><span>${shadowReplay.status}</span><span>自動抽出 ${shadowReplay.autoDetectedCandidates || 0}件</span><span>説明可能 ${rate}</span><span>${best ? `最多要因 ${best.label} ${best.samples}件` : "要因標本なし"}</span><small>過去再生は仮説選別専用。本番重みは前向き40件で判定</small>`
       : "過去急変の時刻監査を準備中";
   }
   const query = (shockSearchInputEl?.value || "").trim().toLowerCase();
@@ -1724,6 +1725,18 @@ function renderShockLog(items, shadowReplay) {
       </article>
     `;
   }).join("");
+}
+
+function renderExternalSignalShadow(view) {
+  if (!externalSignalShadowEl) return;
+  if (!view) {
+    externalSignalShadowEl.textContent = "外部シグナル影検証を準備中";
+    return;
+  }
+  const expectancy = view.expectancyPct == null
+    ? "--"
+    : `${view.expectancyPct >= 0 ? "+" : ""}${Number(view.expectancyPct).toFixed(4)}%`;
+  externalSignalShadowEl.innerHTML = `<strong>外部シグナル影検証</strong><span>${escapeMarkup(view.status)}</span><span>照合 ${view.samples}/${view.minimumSamples}件</span><span>待ち ${view.pending}件</span><span>コスト後平均 ${expectancy}</span><small>Webhookは影検証のみ・実資金注文なし</small>`;
 }
 
 function renderDataHealth(health) {
@@ -4614,6 +4627,7 @@ async function loadSnapshot(forceFull = false) {
     renderAndroidAccess(snapshot.access, snapshot.highConfidenceNotification);
     renderDesktopOperations(snapshot.desktopOperations, snapshot.access);
     renderShockLog(snapshot.shockAnalyses || [], snapshot.postShockShadowReplay);
+    renderExternalSignalShadow(snapshot.externalSignalShadow);
     renderTimeMachine(snapshot.timeMachine);
     renderDataHealth(snapshot.dataHealth);
     renderAiBriefing(snapshot.aiBriefing);

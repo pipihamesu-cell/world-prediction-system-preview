@@ -2631,6 +2631,22 @@ html {
 .shock-shadow-summary strong { color: #f0d48d; }
 .shock-shadow-summary small { margin-left: auto; }
 
+.external-signal-shadow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 10px 10px;
+  padding: 8px 10px;
+  border-left: 3px solid #48c7b5;
+  background: rgba(72, 199, 181, 0.07);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.external-signal-shadow strong { color: #8ce7d8; }
+.external-signal-shadow small { margin-left: auto; }
+
 .shock-attribution header,
 .shock-outcomes {
   display: flex;

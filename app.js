@@ -2035,19 +2035,20 @@ function renderCotAnalysis(cot) {
         ${cotForwardLayers.length ? cotForwardLayers.map((layer) => `
           <article>
             <h4>${layer.label}</h4>
-            ${["h4", "d1"].map((key) => {
+            ${["h4", "d1", "w1", "mo1"].map((key) => {
               const row = layer.horizons?.[key] || {};
+              const required = cotForward.minimumSamplesByHorizon?.[key] || cotForward.minimumSamples || 30;
               const rate = row.hitRate === null || row.hitRate === undefined ? "--" : `${Math.round(Number(row.hitRate) * 100)}%`;
               const net = row.averageNetPct === null || row.averageNetPct === undefined ? "--" : `${Number(row.averageNetPct) >= 0 ? "+" : ""}${Number(row.averageNetPct).toFixed(3)}%`;
               return `<div class="cot-forward-row ${row.profitable ? "up" : row.harmful ? "down" : "pending"}">
-                <span>${row.label || (key === "h4" ? "4時間" : "24時間")}</span>
+                <span>${row.label || key}</span>
                 <strong>${rate}</strong>
                 <b>${net}</b>
-                <small>${row.samples || 0}/${cotForward.minimumSamples || 30}件・${row.status || "検証待ち"}</small>
+                <small>${row.samples || 0}/${required}件・${row.status || "検証待ち"}</small>
               </div>`;
             }).join("")}
           </article>
-        `).join("") : `<p>次回CFTC公表直後から、同一レポートの重複を除いて4時間後・24時間後を記録します。</p>`}
+        `).join("") : `<p>次回CFTC公表直後から、同一レポートの重複を除いて4時間・24時間・1週間・4週間後を記録します。</p>`}
       </div>
     </div>
   `;

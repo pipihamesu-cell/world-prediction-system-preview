@@ -3,7 +3,7 @@ const price = (market) => Number.isFinite(Number(market?.quote?.value)) ? Number
 
 function detectTopic(question = "") {
   const q = String(question).toLowerCase();
-  if (/仮想|デモ|取引|ポジション|損切|利確|口座|含み/.test(q)) return "trading";
+  if (/仮想|デモ|取引|ポジション|損切|利確|口座|含み|買いたい|売りたい|エントリー/.test(q)) return "trading";
   if (/ニュース|材料|指標|発言|理由|なぜ|ファンダ/.test(q)) return "news";
   if (/精度|成績|的中|確率|学習|評価/.test(q)) return "accuracy";
   if (/データ|鮮度|取得|ソース|正常|稼働|保存/.test(q)) return "health";
@@ -35,26 +35,49 @@ export function answerCurrentStatus(question, snapshot, now = new Date()) {
   const command = snapshot.eurusdCommand || {};
   const health = snapshot.dataHealth || {};
   const topNews = command.topNews || (snapshot.importantEurusdItems || [])[0];
+  const analysisPairs = snapshot.fxTradeAnalysisPartner?.pairs || [];
+  const eurusdPlan = analysisPairs.find((item) => item.pairId === "eurusd");
+  const usdjpyPlan = analysisPairs.find((item) => item.pairId === "usdjpy");
   let headline = "現在の運用状況をまとめます";
   let answer = snapshot.aiBriefing?.summary || "市場データ、予測、学習、仮想取引を横断して確認しました。";
   let facts = [...marketFacts(eurusd), ...marketFacts(usdjpy)];
 
   if (topic === "eurusd") {
-    headline = `EUR/USDは${command.stance || "判定中"}`;
-    answer = command.action || "短期・長期の方向を分析しています。";
-    facts = [...marketFacts(eurusd), `予測レンジ ${command.range?.low ?? "--"} ～ ${command.range?.high ?? "--"} / 総合信頼 ${command.confidence?.score ?? "--"}点`, `主な根拠 ${(command.drivers || []).join("、") || "集計中"}`];
+    headline = eurusdPlan ? `EUR/USDは${eurusdPlan.conclusion.action}` : `EUR/USDは${command.stance || "判定中"}`;
+    answer = eurusdPlan?.conclusion.text || command.action || "短期・長期の方向を分析しています。";
+    facts = eurusdPlan ? [
+      ...marketFacts(eurusd),
+      `時間足 ${(eurusdPlan.multiTimeframe || []).map((row) => `${row.label}:${row.directionLabel}`).join(" / ")}`,
+      `支持 ${eurusdPlan.importantPrices?.support ?? "--"} / 分岐 ${eurusdPlan.importantPrices?.decisionPoint ?? "--"} / 抵抗 ${eurusdPlan.importantPrices?.resistance ?? "--"}`,
+      `買い材料 ${(eurusdPlan.fundamentals?.buyFactors || []).join("、") || "なし"}`,
+      `売り材料 ${(eurusdPlan.fundamentals?.sellFactors || []).join("、") || "なし"}`,
+      `見送り理由 ${(eurusdPlan.conclusion?.blockers || []).join("、") || "なし"}`
+    ] : [...marketFacts(eurusd), `予測レンジ ${command.range?.low ?? "--"} ～ ${command.range?.high ?? "--"} / 総合信頼 ${command.confidence?.score ?? "--"}点`, `主な根拠 ${(command.drivers || []).join("、") || "集計中"}`];
   } else if (topic === "usdjpy") {
     const yen = snapshot.yenCrossCommand || {};
-    headline = `USD/JPYは${yen.primary?.directionLabel || yen.directionLabel || "分析中"}`;
-    answer = yen.summary || yen.action || "日米金利差、通貨強度、当局発言、介入警戒を分離して判定しています。";
-    facts = [...marketFacts(usdjpy), `介入監視 ${yen.intervention?.label || yen.interventionRisk?.label || "確認中"}`];
+    headline = usdjpyPlan ? `USD/JPYは${usdjpyPlan.conclusion.action}` : `USD/JPYは${yen.primary?.directionLabel || yen.directionLabel || "分析中"}`;
+    answer = usdjpyPlan?.conclusion.text || yen.summary || yen.action || "日米金利差、通貨強度、当局発言、介入警戒を分離して判定しています。";
+    facts = usdjpyPlan ? [
+      ...marketFacts(usdjpy),
+      `時間足 ${(usdjpyPlan.multiTimeframe || []).map((row) => `${row.label}:${row.directionLabel}`).join(" / ")}`,
+      `支持 ${usdjpyPlan.importantPrices?.support ?? "--"} / 分岐 ${usdjpyPlan.importantPrices?.decisionPoint ?? "--"} / 抵抗 ${usdjpyPlan.importantPrices?.resistance ?? "--"}`,
+      `見送り理由 ${(usdjpyPlan.conclusion?.blockers || []).join("、") || "なし"}`
+    ] : [...marketFacts(usdjpy), `介入監視 ${yen.intervention?.label || yen.interventionRisk?.label || "確認中"}`];
   } else if (topic === "trading") {
     const position = paper.position;
     const positionDigits = position?.pairLabel === "USD/JPY" ? 3 : 5;
     const positionPrice = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(positionDigits) : "--";
-    headline = position ? `${position.pairLabel}の${position.side === "long" ? "買い" : "売り"}を仮想保有中` : "公式仮想口座は次の機会を監視中";
-    answer = position ? "入口条件を固定保存し、損切り・利確・最大保有時間を最新価格で自動判定しています。" : (paper.actionDetail || "品質ゲート通過まで待機します。");
-    facts = [`総資産 ${Math.round(paper.equity || paper.cashBalance || 0).toLocaleString("ja-JP")}円 / 収益率 ${percent(paper.totalReturnPct, 3)}`, position ? `約定 ${positionPrice(position.entryPrice)} → 現在 ${positionPrice(position.currentPrice)} / 含み損益 ${Math.round(position.unrealizedPnl || 0).toLocaleString("ja-JP")}円` : "未決済ポジションなし", position ? `損切り ${positionPrice(position.stopPrice)} / 利確 ${positionPrice(position.targetPrice)} / 最大保有 ${position.maxHoldingMinutes}分` : `次の障害 ${(paper.blockers || []).join("、") || "なし"}`];
+    const requestedPlan = /ドル円|usd.?jpy/.test(cleanQuestion.toLowerCase()) ? usdjpyPlan : eurusdPlan;
+    headline = position ? `${position.pairLabel}の${position.side === "long" ? "買い" : "売り"}を仮想保有中` : requestedPlan ? `${requestedPlan.pairLabel}は${requestedPlan.conclusion.action}` : "公式仮想口座は次の機会を監視中";
+    answer = position ? "入口条件を固定保存し、損切り・利確・最大保有時間を最新価格で自動判定しています。" : requestedPlan?.conclusion.text || paper.actionDetail || "品質ゲート通過まで待機します。";
+    const candidate = requestedPlan?.primaryScenario?.candidate || requestedPlan?.primaryScenario;
+    facts = [
+      `総資産 ${Math.round(paper.equity || paper.cashBalance || 0).toLocaleString("ja-JP")}円 / 収益率 ${percent(paper.totalReturnPct, 3)}`,
+      position ? `約定 ${positionPrice(position.entryPrice)} → 現在 ${positionPrice(position.currentPrice)} / 含み損益 ${Math.round(position.unrealizedPnl || 0).toLocaleString("ja-JP")}円` : "未決済ポジションなし",
+      position ? `損切り ${positionPrice(position.stopPrice)} / 利確 ${positionPrice(position.targetPrice)} / 最大保有 ${position.maxHoldingMinutes}分` : `条件案 ${candidate?.side || "WAIT"} / ENTRY ${candidate?.entry ?? "--"} / SL ${candidate?.stop ?? "--"} / TP ${candidate?.target ?? "--"} / RR ${candidate?.riskReward ?? "--"}`,
+      position ? "" : `SL根拠 ${candidate?.stopReason || "構造未確定"}`,
+      position ? "" : `注文取消 ${(candidate?.cancellationConditions || []).join("、") || "条件未設定"}`
+    ];
   } else if (topic === "news") {
     headline = topNews ? `最重要材料: ${topNews.title}` : "重要材料を収集中";
     answer = topNews ? `${topNews.source || "ニュース"}を重要度${topNews.importance ?? "--"}%で監視し、価格反応を照合します。` : "FRB、ECB、経済指標、要人発言の一次情報を優先監視しています。";

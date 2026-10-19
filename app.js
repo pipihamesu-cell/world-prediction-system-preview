@@ -3,6 +3,7 @@ const FEATURE_FLAGS = Object.freeze({ globe3d: true });
 const NATIVE_APP_MODE = Boolean(globalThis.WpsNative?.isNative);
 const STATIC_PREVIEW_MODE = location.hostname.endsWith("github.io") || NATIVE_APP_MODE;
 const signedYen = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
+const escapeMarkup = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const globeEl = document.getElementById("globe");
 const map2dEl = document.getElementById("map-2d");
 const mapAlertMarkersEl = document.getElementById("map-alert-markers");
@@ -112,6 +113,9 @@ const healthStatusEl = document.getElementById("health-status");
 const eurusdCommandPanelEl = document.getElementById("eurusd-command-panel");
 const eurusdCommandStatusEl = document.getElementById("eurusd-command-status");
 const eurusdCommandEl = document.getElementById("eurusd-command");
+const fxAnalysisPartnerPanelEl = document.getElementById("fx-analysis-partner-panel");
+const fxAnalysisPartnerStatusEl = document.getElementById("fx-analysis-partner-status");
+const fxAnalysisPartnerEl = document.getElementById("fx-analysis-partner");
 const yenCrossCommandPanelEl = document.getElementById("yen-cross-command-panel");
 const yenCrossCommandStatusEl = document.getElementById("yen-cross-command-status");
 const yenCrossCommandEl = document.getElementById("yen-cross-command");
@@ -328,7 +332,7 @@ function initMobileSectionTabs() {
 
   const groups = {
     decision: [
-      "#finance-monitor-panel", "#alert-panel", "#eurusd-command-panel", "#yen-cross-command-panel", "#swing-compass-panel",
+      "#finance-monitor-panel", "#alert-panel", "#fx-analysis-partner-panel", "#eurusd-command-panel", "#yen-cross-command-panel", "#swing-compass-panel",
       "#probability-simulation-panel", ".eurusd-timeframes-wrap", "#currency-strength-panel",
       "#eurusd-pivot-panel", "#usdjpy-pivot-panel", "#time-machine-panel", "#command-center-panel", "#ai-question-panel", ".intelligence-grid",
       ".scenario-wrap"
@@ -1418,7 +1422,6 @@ function applyDesignMode() {
 
 function renderMap2d(events, centers, alerts) {
   if (!mapAlertMarkersEl) return;
-  const escapeMarkup = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const eventMarkers = globeLayers.events ? events.filter((item) => {
     const occurredAt = Date.parse(item.time || item.at || "");
     const recent = Number.isFinite(occurredAt) && Date.now() - occurredAt >= 0 && Date.now() - occurredAt < 5 * 60 * 1000;
@@ -2244,6 +2247,67 @@ function renderEurusdCommand(command, market) {
       </div>
     </div>
   `;
+}
+
+function safeText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+}
+
+function renderFxAnalysisPartner(partner) {
+  if (!fxAnalysisPartnerEl || !fxAnalysisPartnerPanelEl || !fxAnalysisPartnerStatusEl) return;
+  const pairs = partner?.pairs || [];
+  if (!pairs.length) {
+    fxAnalysisPartnerEl.innerHTML = '<p class="fx-analysis-empty">確定足とファンダメンタルズを統合しています。</p>';
+    return;
+  }
+  const actionable = pairs.filter((row) => row.conclusion?.action !== "WAIT");
+  fxAnalysisPartnerPanelEl.className = `fx-analysis-partner-wrap ${actionable.length ? "ready" : "waiting"}`;
+  fxAnalysisPartnerStatusEl.textContent = actionable.length ? `${actionable.length}通貨ペア 条件付き候補` : "現在はノートレード";
+  fxAnalysisPartnerEl.innerHTML = `
+    <div class="fx-analysis-method">判断順序: ${safeText(partner.method)}</div>
+    <div class="fx-analysis-pairs">
+      ${pairs.map((pair) => {
+        const conclusion = pair.conclusion || {};
+        const scenario = pair.primaryScenario || {};
+        const candidate = scenario.candidate || scenario;
+        const tone = conclusion.action === "LONG" ? "up" : conclusion.action === "SHORT" ? "down" : "flat";
+        const prices = pair.importantPrices || {};
+        return `
+          <article class="fx-analysis-card ${tone}">
+            <header><div><span>${safeText(pair.pairLabel)}</span><strong>${safeText(conclusion.action || "WAIT")}</strong></div><b>${safeText(pair.probability?.confidence)} ${Number(pair.probability?.percent || 0)}%</b></header>
+            <p class="fx-analysis-conclusion">${safeText(conclusion.text)}</p>
+            <div class="fx-analysis-timeframes">${(pair.multiTimeframe || []).map((row) => `<span class="${row.direction || "flat"}"><b>${safeText(row.label)}</b>${safeText(row.directionLabel)}<small>${safeText(row.state)}</small></span>`).join("")}</div>
+            <div class="fx-analysis-levels">
+              <span>支持<strong>${prices.support ?? "-"}</strong></span>
+              <span>分岐P<strong>${prices.decisionPoint ?? "-"}</strong></span>
+              <span>抵抗<strong>${prices.resistance ?? "-"}</strong></span>
+            </div>
+            <div class="fx-analysis-order">
+              <span>${conclusion.action === "WAIT" ? "監視条件（未発注）" : "条件付き候補"} <strong>${safeText(candidate.side || "WAIT")}</strong></span>
+              <span>ENTRY <strong>${candidate.entry ?? "-"}</strong></span>
+              <span>SL <strong>${candidate.stop ?? "-"}</strong></span>
+              <span>TP <strong>${candidate.target ?? "-"}</strong></span>
+              <span>RR <strong>${candidate.riskReward ?? "-"}</strong></span>
+              <span>注文 <strong>${safeText(candidate.orderType || "見送り")}</strong></span>
+            </div>
+            <div class="fx-analysis-fundamentals">
+              <div><b>買い材料</b><span>${safeText((pair.fundamentals?.buyFactors || []).join(" / ") || "明確な材料なし")}</span></div>
+              <div><b>売り材料</b><span>${safeText((pair.fundamentals?.sellFactors || []).join(" / ") || "明確な材料なし")}</span></div>
+            </div>
+            <details>
+              <summary>根拠・破綻条件・別シナリオ</summary>
+              <p><b>ENTRY:</b> ${safeText(candidate.entryReason || "条件不足")}</p>
+              <p><b>SL:</b> ${safeText(candidate.stopReason || "構造確定待ち")}</p>
+              <p><b>TP:</b> ${safeText(candidate.targetReason || "構造確定待ち")}</p>
+              <p><b>取消:</b> ${safeText((candidate.cancellationConditions || []).join(" / ") || "未設定")}</p>
+              <p><b>別案:</b> ${safeText(pair.alternateScenario?.condition || "反対構造成立時に再計算")}</p>
+              <div class="fx-analysis-evidence"><b>事実</b>${(pair.facts || []).map((item) => `<span>${safeText(item)}</span>`).join("")}</div>
+              <div class="fx-analysis-evidence inference"><b>推測</b>${(pair.inferences || []).map((item) => `<span>${safeText(item)}</span>`).join("")}</div>
+            </details>
+            <small class="fx-analysis-note">${safeText(pair.probability?.type)}。${safeText(pair.probability?.note)} ${safeText(pair.disclaimer)}</small>
+          </article>`;
+      }).join("")}
+    </div>`;
 }
 
 function formatHorizon(minutes) {
@@ -4535,7 +4599,7 @@ async function askCurrentStatus(question) {
   try {
     let result;
     if (STATIC_PREVIEW_MODE) {
-      const assistant = await import("./current-status-assistant.js?v=157");
+      const assistant = await import("./current-status-assistant.js?v=158");
       result = assistant.answerCurrentStatus(value, latestSnapshot);
     } else {
       const response = await fetch("/api/ask-current-status", {
@@ -4642,6 +4706,7 @@ async function loadSnapshot(forceFull = false) {
     renderFundamentalNews(snapshot.fundamentalNews);
     renderGeopoliticalRisk(snapshot.fundamentalNews);
     renderCurrencyStrength(snapshot.currencyStrength, snapshot.executionCost);
+    renderFxAnalysisPartner(snapshot.fxTradeAnalysisPartner);
     renderEurusdCommand(snapshot.eurusdCommand, (snapshot.markets || []).find((market) => market.id === "eurusd"));
     renderYenCrossCommand(snapshot.yenCrossCommand);
     renderEuroSovereignSpread(snapshot.euroSovereignSpread);

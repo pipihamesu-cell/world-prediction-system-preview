@@ -1666,6 +1666,8 @@ function renderShockLog(items) {
       item.reason,
       item.location,
       item.smartMoney?.verdict,
+      item.attribution?.primaryCause,
+      item.attribution?.explanation,
       ...((item.smartMoney?.labels || [])),
       ...((item.smartMoney?.reasons || [])),
       ...((item.relatedSignals || []).map((signal) => `${signal.title} ${signal.source} ${signal.domain}`))
@@ -1684,6 +1686,11 @@ function renderShockLog(items) {
     const quake = (item.nearbyEvents || [])[0];
     const directionLabel = item.direction === "up" ? "上方向" : item.direction === "down" ? "下方向" : "横ばい";
     const directionMark = item.direction === "up" ? "↑" : item.direction === "down" ? "↓" : "→";
+    const attribution = item.attribution;
+    const beforeNews = (attribution?.news || []).filter((signal) => signal.timing === "known_before_move");
+    const afterNews = (attribution?.news || []).filter((signal) => signal.timing === "reported_after_move");
+    const outcome15 = attribution?.outcome15;
+    const outcome60 = attribution?.outcome60;
     return `
       <article class="shock-log-item ${item.severity}">
         <time>${new Date(item.createdAt).toLocaleTimeString("ja-JP")}</time>
@@ -1691,6 +1698,18 @@ function renderShockLog(items) {
         <div class="shock-direction ${item.direction || "flat"}">${directionMark} ${directionLabel}</div>
         <span>${item.location || "Global"} / 信頼 ${item.confidence}%</span>
         <p>${item.reason}</p>
+        ${attribution ? `
+          <section class="shock-attribution">
+            <header><b>事後原因分析</b><em>${attribution.status} / 根拠信頼 ${attribution.confidence}%</em></header>
+            <p>${attribution.explanation}</p>
+            <div class="shock-outcomes">
+              <span>検知 ${Number(attribution.priceAtShock).toFixed(5)}</span>
+              <span>15分 ${outcome15 ? `${outcome15.movePct >= 0 ? "+" : ""}${outcome15.movePct.toFixed(3)}%${outcome15.valid ? "" : " (時刻外)"}` : "追跡中"}</span>
+              <span>60分 ${outcome60 ? `${outcome60.movePct >= 0 ? "+" : ""}${outcome60.movePct.toFixed(3)}%${outcome60.valid ? "" : " (時刻外)"}` : "追跡中"}</span>
+            </div>
+            <small>主因候補: ${attribution.primaryCause} / 変動前資料 ${beforeNews.length}件 / 事後報道 ${afterNews.length}件 / ${attribution.learningEligible ? "学習候補" : "学習保留"}</small>
+          </section>
+        ` : ""}
         ${item.smartMoney ? `<p class="shock-smartmoney">大口/だまし: ${item.smartMoney.verdict} / ${(item.smartMoney.labels || []).join(" / ")}</p>` : ""}
         <small>${news ? `ニュース: ${news.title}` : quake ? `災害: ${quake.title}` : comove ? `連動: ${comove.label} ${comove.dailyDeltaPct >= 0 ? "+" : ""}${comove.dailyDeltaPct.toFixed(2)}%` : item.message}</small>
       </article>

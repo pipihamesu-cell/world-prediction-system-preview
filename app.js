@@ -3620,6 +3620,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
   const estimatedMaxLossJpy = position && Number.isFinite(Number(position.estimatedMaxLossJpy))
     ? Number(position.estimatedMaxLossJpy)
     : Number(position?.notionalJpy || 0) * (Number(position?.stopPct || 0) + Number(position?.roundTripCostPct || 0)) / 100;
+  const emergency = position?.emergencyMonitor || null;
   containerEl.innerHTML = `
     ${shadow && data.automation ? `<div class="paper-automation ${data.automation.enabled && !data.riskLocked ? "active" : "paused"}">
       <div><i></i><span>自動仮想取引</span><strong>${data.automation.label}</strong></div>
@@ -3690,6 +3691,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
         <div><span>約定・現在値</span><strong>${Number(position.entryPrice).toFixed(priceDigits)} → ${Number(position.currentPrice).toFixed(priceDigits)}</strong><small>${new Date(position.openedAt).toLocaleString("ja-JP")}開始</small></div>
         <div><span>損切り・利確</span><strong>${Number(position.stopPrice).toFixed(priceDigits)} / ${Number(position.targetPrice).toFixed(priceDigits)}</strong><small>最大保有 ${position.maxHoldingMinutes}分</small></div>
         <div><span>損失上限（コスト込）</span><strong>${yen(estimatedMaxLossJpy)}</strong><small>予算 ${yen(position.riskBudget)} / ${Number(position.lossAndCostPct || position.stopPct || 0).toFixed(3)}%</small></div>
+        ${!shadow ? `<div class="paper-emergency ${emergency?.status || "standby"}"><span>急変退避</span><strong>${emergency?.label || "監視準備"}</strong><small>${emergency?.reason || "照合済み価格を3点確認して発動"}</small></div>` : ""}
         ${shadow ? `<div><span>現在のR・保有時間</span><strong class="${Number(position.currentR || 0) >= 0 ? "up" : "down"}">${position.currentR == null ? "--" : `${Number(position.currentR) >= 0 ? "+" : ""}${Number(position.currentR).toFixed(2)}R`} / ${position.holdingMinutes || 0}分</strong><small>含み損益 ${signedYen(position.unrealizedPnl)}</small></div>
         <div><span>出口までの距離</span><strong>損切 ${Number(position.stopDistancePct || 0).toFixed(3)}% / 利確 ${Number(position.targetDistancePct || 0).toFixed(3)}%</strong><small>${position.quoteConsensusVerified ? "複数価格照合済み" : "価格照合未完了"} / 鮮度 ${Math.round(Number(position.quoteFreshnessSeconds || 0))}秒</small></div>` : ""}
       ` : `<div><span>ポジション</span><strong>保有なし</strong><small>${shadow ? "次の確定15分シグナルを待機" : "品質基準を通過するまで注文しません"}</small></div>`}
@@ -3700,7 +3702,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>発注を妨げている条件</span>${(data.blockers || []).map((item) => `<small class="unmet">${item}</small>`).join("") || "<small class=\"met\">なし</small>"}</div>
     </div>
     <div class="paper-rules">
-      ${shadow ? "<span>EUR/USD学習用・公式資金とは別集計</span>" : "<span>総資金1,000万円を2通貨で共有</span>"}<span>同時保有 最大${data.rules?.maxConcurrentPositions || 1}件</span><span>1取引リスク 試験${data.rules?.trialRiskPerTradePct ?? 0.1}% / 通常${data.rules?.riskPerTradePct}%</span><span>最大${data.rules?.maxLeverage}倍</span><span>日次停止 −${data.rules?.dailyLossLimitPct}%</span><span>最大DD停止 −${data.rules?.maxDrawdownPct}%</span><span>決済後${data.rules?.cooldownMinutes}分待機</span>
+      ${shadow ? "<span>EUR/USD学習用・公式資金とは別集計</span>" : "<span>総資金1,000万円を2通貨で共有</span>"}<span>同時保有 最大${data.rules?.maxConcurrentPositions || 1}件</span><span>1取引リスク 試験${data.rules?.trialRiskPerTradePct ?? 0.1}% / 通常${data.rules?.riskPerTradePct}%</span><span>最大${data.rules?.maxLeverage}倍</span><span>日次停止 −${data.rules?.dailyLossLimitPct}%</span><span>最大DD停止 −${data.rules?.maxDrawdownPct}%</span><span>決済後${data.rules?.cooldownMinutes}分待機</span>${!shadow && data.rules?.emergencyExit?.enabled ? `<span>急変退避 ${data.rules.emergencyExit.minimumObservations}点確認 / ${Number(data.rules.emergencyExit.minimumThresholdPct).toFixed(2)}〜${Number(data.rules.emergencyExit.maximumThresholdPct).toFixed(2)}%</span>` : ""}
     </div>
     <div class="paper-trade-history">
       <div class="paper-history-head"><span>決済履歴</span><strong>${data.recentTrades?.length || 0}件表示</strong></div>
@@ -3747,6 +3749,7 @@ function renderPaperPositionBar(official, shadow = null) {
   const estimatedMaxLossJpy = Number.isFinite(Number(position.estimatedMaxLossJpy))
     ? Number(position.estimatedMaxLossJpy)
     : Number(position.notionalJpy || 0) * (Number(position.stopPct || 0) + Number(position.roundTripCostPct || 0)) / 100;
+  const emergency = position.emergencyMonitor || {};
 
   paperPositionBarEl.className = `paper-position-bar active ${position.side === "long" ? "long" : "short"} ${pnl >= 0 ? "profit" : "loss"}`;
   paperPositionStateEl.textContent = `${position.pairLabel || "EUR/USD"} ${sideLabel}を保有中`;
@@ -3755,7 +3758,7 @@ function renderPaperPositionBar(official, shadow = null) {
     <div class="paper-position-pnl"><span>現在の含み損益</span><strong>${yen(pnl, true)}</strong><small>${position.currentR == null ? "前向き検証中" : `${Number(position.currentR) >= 0 ? "+" : ""}${Number(position.currentR).toFixed(2)}R`}</small></div>
     <div class="paper-position-range"><span>損切り ${Number(position.stopPrice).toFixed(digits)} / 利確 ${Number(position.targetPrice).toFixed(digits)}</span><div><i style="left:${progress.toFixed(1)}%"></i></div><small>損切りから利確までの現在位置</small></div>
     <div><span>最大損失（コスト込）</span><strong>${yen(estimatedMaxLossJpy)}</strong><small>損失予算 ${yen(position.riskBudget)}</small></div>
-    <div><span>保有時間</span><strong>${holdingMinutes}分</strong><small>最大 ${position.maxHoldingMinutes || "--"}分</small></div>`;
+    <div><span>急変退避 / 保有時間</span><strong>${emergency.label || "監視準備"}</strong><small>${holdingMinutes}分 / ${emergency.reason || "照合価格を確認中"}</small></div>`;
 }
 
 function renderTradingAnalytics(official, eurusdFrames = [], yenCrossCommand = null) {

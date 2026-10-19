@@ -5131,6 +5131,9 @@ body.design-command .finance-hotspots { background: #091117; }
 .paper-action.up > div:first-child strong { color: var(--green); }
 .paper-action.down > div:first-child strong, .paper-action.locked > div:first-child strong { color: var(--red); }
 .paper-action.waiting > div:first-child strong { color: var(--amber); }
+.paper-action .paper-emergency.watch strong { color: var(--amber); }
+.paper-action .paper-emergency.triggered strong { color: var(--red); }
+.paper-action .paper-emergency.data_hold strong { color: var(--muted); }
 .paper-rules { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 .paper-rules span { padding: 5px 8px; border: 1px solid rgba(218, 233, 224, 0.1); color: var(--muted); font-size: 10px; }
 .paper-entry-snapshot { margin-top: 10px; padding: 10px; border: 1px solid rgba(181, 140, 255, 0.2); background: rgba(181, 140, 255, 0.05); }

@@ -3675,6 +3675,12 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>1取引期待値</span><strong>${data.fundamentalTradePerformance.expectancyJpy == null ? "--" : signedYen(data.fundamentalTradePerformance.expectancyJpy)}</strong><small>PF ${data.fundamentalTradePerformance.profitFactor == null ? "--" : data.fundamentalTradePerformance.profitFactor === null ? "--" : Number.isFinite(data.fundamentalTradePerformance.profitFactor) ? Number(data.fundamentalTradePerformance.profitFactor).toFixed(2) : "∞"}</small></div>
       <div><span>継続条件</span><strong>${data.fundamentalTradePerformance.accepted ? "発注可能" : "自動停止"}</strong><small>20件後に勝率・期待値・PFを審査</small></div>
     </div>` : ""}
+    ${!shadow && data.emergencyExitValidation ? `<div class="paper-exit-strategy">
+      <div><span>急変退避・反実仮想検証</span><strong>${data.emergencyExitValidation.decision}</strong><small>完了 ${data.emergencyExitValidation.samples}/30件 / 追跡中 ${data.emergencyExitValidation.pending}件</small></div>
+      <div><span>退避が改善 / 悪化</span><strong>${data.emergencyExitValidation.helped} / ${data.emergencyExitValidation.harmed}件</strong><small>同じ取引の従来出口と比較</small></div>
+      <div><span>累計退避効果</span><strong class="${Number(data.emergencyExitValidation.netBenefitJpy || 0) >= 0 ? "up" : "down"}">${signedYen(data.emergencyExitValidation.netBenefitJpy)}</strong><small>平均 ${data.emergencyExitValidation.averageBenefitJpy == null ? "--" : signedYen(data.emergencyExitValidation.averageBenefitJpy)}</small></div>
+      <div><span>統計確認</span><strong>${data.emergencyExitValidation.verifiedBeneficial ? "有効性確認" : "自動昇格なし"}</strong><small>95%下限 ${data.emergencyExitValidation.lower95Jpy == null ? "--" : signedYen(data.emergencyExitValidation.lower95Jpy)}</small></div>
+    </div>` : ""}
     ${!shadow && data.shadowRecoveryGate ? `<div class="paper-regime-guard ${data.shadowRecoveryGate.accepted ? "stable" : "waiting"}">
       <div><span>公式口座・回復昇格ゲート</span><strong>${data.shadowRecoveryGate.label}</strong></div>
       <small>学習口座の直近 ${data.shadowRecoveryGate.samples}/${data.shadowRecoveryGate.minimumSamples}件 / 期待値 ${data.shadowRecoveryGate.expectancyJpy == null ? "--" : signedYen(data.shadowRecoveryGate.expectancyJpy)} / PF ${data.shadowRecoveryGate.profitFactor == null ? "--" : Number(data.shadowRecoveryGate.profitFactor).toFixed(2)} / 95%下限 ${data.shadowRecoveryGate.expectancy95?.low == null ? "--" : signedYen(data.shadowRecoveryGate.expectancy95.low)}</small>

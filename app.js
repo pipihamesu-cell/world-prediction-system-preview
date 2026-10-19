@@ -64,6 +64,7 @@ const greedComponentsEl = document.getElementById("greed-components");
 const countryRiskEl = document.getElementById("country-risk");
 const shockLogEl = document.getElementById("shock-log");
 const shockLogCountEl = document.getElementById("shock-log-count");
+const shockShadowSummaryEl = document.getElementById("shock-shadow-summary");
 const shockSearchInputEl = document.getElementById("shock-search-input");
 const shockDirectionFilterEl = document.getElementById("shock-direction-filter");
 const timeMachineEl = document.getElementById("time-machine");
@@ -1653,8 +1654,16 @@ function renderShockRadar(items, watchPoints) {
   `).join("");
 }
 
-function renderShockLog(items) {
+function renderShockLog(items, shadowReplay) {
   latestShockLogs = items || [];
+  if (shockShadowSummaryEl) {
+    const rate = shadowReplay?.explanationRate === null || shadowReplay?.explanationRate === undefined
+      ? "--" : `${Math.round(shadowReplay.explanationRate * 100)}%`;
+    const best = shadowReplay?.factors?.[0];
+    shockShadowSummaryEl.innerHTML = shadowReplay
+      ? `<strong>後知恵なし影検証</strong><span>${shadowReplay.status}</span><span>説明可能 ${rate}</span><span>${best ? `最多要因 ${best.label} ${best.samples}件` : "要因標本なし"}</span><small>過去再生は仮説選別専用。本番重みは前向き40件で判定</small>`
+      : "過去急変の時刻監査を準備中";
+  }
   const query = (shockSearchInputEl?.value || "").trim().toLowerCase();
   const direction = shockDirectionFilterEl?.value || "";
   const logs = latestShockLogs.filter((item) => {
@@ -4604,7 +4613,7 @@ async function loadSnapshot(forceFull = false) {
     renderAlerts(snapshot.alerts || []);
     renderAndroidAccess(snapshot.access, snapshot.highConfidenceNotification);
     renderDesktopOperations(snapshot.desktopOperations, snapshot.access);
-    renderShockLog(snapshot.shockAnalyses || []);
+    renderShockLog(snapshot.shockAnalyses || [], snapshot.postShockShadowReplay);
     renderTimeMachine(snapshot.timeMachine);
     renderDataHealth(snapshot.dataHealth);
     renderAiBriefing(snapshot.aiBriefing);

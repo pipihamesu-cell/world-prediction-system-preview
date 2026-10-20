@@ -3010,6 +3010,14 @@ function renderYenCrossCommand(command) {
         <article><span>停止理由</span><strong>${command.executionHorizonGate.blockers?.[0] || "条件通過"}</strong><small>${command.executionHorizonGate.blockers?.slice(1, 3).join(" / ") || command.executionHorizonGate.method}</small></article>
       </div>
     </div>` : ""}
+    ${command.specialistHistoricalBacktest ? `<div class="yen-cross-challenger shadow">
+      <header><div><span>USD/JPY 60日・時系列再生実績</span><strong>${command.specialistHistoricalBacktest.status}</strong></div><b>過去検証のみ</b></header>
+      <div>
+        <article><span>H4 未来30%</span><strong>${command.specialistHistoricalBacktest.h4?.validation?.samples || 0}件 / ${command.specialistHistoricalBacktest.h4?.validation?.hitRate == null ? "--" : `${Math.round(command.specialistHistoricalBacktest.h4.validation.hitRate * 100)}%`}</strong><small>コスト後 ${Number(command.specialistHistoricalBacktest.h4?.validation?.netReturnPct || 0).toFixed(3)}% / 統計下限 ${Math.round(Number(command.specialistHistoricalBacktest.h4?.validation?.hitRateLowerBound || 0) * 100)}%</small></article>
+        <article><span>M15 未来30%</span><strong>${command.specialistHistoricalBacktest.m15?.validation?.samples || 0}件 / ${command.specialistHistoricalBacktest.m15?.validation?.hitRate == null ? "--" : `${Math.round(command.specialistHistoricalBacktest.m15.validation.hitRate * 100)}%`}</strong><small>コスト後 ${Number(command.specialistHistoricalBacktest.m15?.validation?.netReturnPct || 0).toFixed(3)}% / 統計下限 ${Math.round(Number(command.specialistHistoricalBacktest.m15?.validation?.hitRateLowerBound || 0) * 100)}%</small></article>
+        <article><span>採用判断</span><strong>${command.specialistHistoricalBacktest.accepted ? "候補" : "不採用"}</strong><small>価格だけの追随では勝てない事実を保存。現行マクロ専門モデルとは別成績です。</small></article>
+      </div>
+    </div>` : ""}
     <div class="segment-release-board ${usdGuard.blocked ? "blocked" : usdGuard.segmentReleased ? "released" : "learning"}">
       <header><div><span>USD/JPY 根拠別・停止解除検証</span><strong>${usdGuard.label || usdLedger.status || "独立標本を蓄積中"}</strong></div><b>${usdGuard.segmentReleased ? "正式解除" : usdGuard.blocked ? "停止継続" : "監視中"}</b></header>
       <div>${usdReleaseRows.slice(0, 4).map((row) => `<article><span>${row.key}</span><strong>${row.releaseConfirmed ? "解除確認" : row.releaseCandidate ? "前向き再検証" : "停止効果監視"}</strong><small>停止 ${row.blockedSamples}件 / 解除後 ${row.trialSamples}/15件</small><small>解除後一致 ${row.trialHitRate == null ? "--" : `${Math.round(row.trialHitRate * 100)}%`} / 期待値 ${row.trialExpectancyPct == null ? "--" : `${Number(row.trialExpectancyPct) >= 0 ? "+" : ""}${Number(row.trialExpectancyPct).toFixed(4)}%`}</small></article>`).join("") || `<article><span>USD/JPY複合条件</span><strong>標本蓄積中</strong><small>30件到達後に停止効果を検証</small></article>`}</div>

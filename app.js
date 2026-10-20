@@ -2270,6 +2270,8 @@ function renderFxAnalysisPartner(partner) {
         const conclusion = pair.conclusion || {};
         const scenario = pair.primaryScenario || {};
         const candidate = scenario.candidate || scenario;
+        const validation = partner.forwardValidation?.pairs?.[pair.pairId] || {};
+        const minimumSamples = partner.forwardValidation?.minimumSamples || 40;
         const tone = conclusion.action === "LONG" ? "up" : conclusion.action === "SHORT" ? "down" : "flat";
         const prices = pair.importantPrices || {};
         return `
@@ -2289,6 +2291,13 @@ function renderFxAnalysisPartner(partner) {
               <span>TP <strong>${candidate.target ?? "-"}</strong></span>
               <span>RR <strong>${candidate.riskReward ?? "-"}</strong></span>
               <span>注文 <strong>${safeText(candidate.orderType || "見送り")}</strong></span>
+            </div>
+            <div class="fx-analysis-validation">
+              <b>前向き検証</b>
+              <span>15分 ${validation.m15?.samples || 0}/${minimumSamples}</span>
+              <span>1時間 ${validation.h1?.samples || 0}/${minimumSamples}</span>
+              <span>4時間 ${validation.h4?.samples || 0}/${minimumSamples}</span>
+              <small>WAITは損失回避と利益逸失を分離。標本到達まで予測へ反映しません。</small>
             </div>
             <div class="fx-analysis-fundamentals">
               <div><b>買い材料</b><span>${safeText((pair.fundamentals?.buyFactors || []).join(" / ") || "明確な材料なし")}</span></div>

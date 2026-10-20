@@ -1895,6 +1895,10 @@ html {
 .fx-analysis-levels span, .fx-analysis-order span { padding: 6px 7px; background: rgba(97, 216, 255, 0.05); color: var(--muted); font-size: 10px; }
 .fx-analysis-levels strong, .fx-analysis-order strong { display: block; margin-top: 2px; color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 .fx-analysis-fundamentals { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.fx-analysis-validation { display: grid; grid-template-columns: auto repeat(3, auto); align-items: center; gap: 6px; margin-top: 8px; padding: 7px; border: 1px solid rgba(240, 184, 79, 0.24); color: var(--muted); font-size: 10px; }
+.fx-analysis-validation b { color: var(--amber); }
+.fx-analysis-validation span { text-align: center; }
+.fx-analysis-validation small { grid-column: 1 / -1; color: var(--muted); line-height: 1.35; }
 .fx-analysis-fundamentals > div { padding: 7px; border: 1px solid var(--line); }
 .fx-analysis-fundamentals b, .fx-analysis-fundamentals span { display: block; }
 .fx-analysis-fundamentals b { color: var(--cyan); font-size: 10px; }
@@ -1912,6 +1916,8 @@ html {
   .fx-analysis-pairs { grid-template-columns: 1fr; }
   .fx-analysis-timeframes { grid-template-columns: repeat(5, minmax(54px, 1fr)); overflow-x: auto; }
   .fx-analysis-fundamentals { grid-template-columns: 1fr; }
+  .fx-analysis-validation { grid-template-columns: 1fr 1fr; }
+  .fx-analysis-validation b, .fx-analysis-validation small { grid-column: 1 / -1; }
 }
 
 .eurusd-command-wrap.up {

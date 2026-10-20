@@ -6297,12 +6297,21 @@ body.design-command .price { font-family: ui-monospace, Consolas, monospace; }
   grid-column: 1 / -1;
   grid-row: 6;
   min-width: 0;
-  padding: 0 14px 14px;
+  padding: 14px;
   border-bottom: 1px solid rgba(244, 211, 94, .24);
   background: #050b0f;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 .full-width-gate-stack[hidden] { display: none; }
-.full-width-gate-stack > .gate-verification-wrap { width: 100%; margin: 0; }
+.unified-gate-head { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 2px 2px 0; }
+.unified-gate-head div { display: grid; gap: 4px; }
+.unified-gate-head span { color: #f4d35e; font-size: 17px; font-weight: 800; }
+.unified-gate-head small { color: var(--muted); }
+.unified-gate-head strong { color: #8be9fd; white-space: nowrap; }
+.full-width-gate-stack > .paper-trading-wrap { width: 100%; min-width: 0; margin: 0; }
+.full-width-gate-stack > .gate-verification-wrap { grid-column: 1 / -1; width: 100%; margin: 0; }
 
 .shell,
 body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto; }
@@ -6320,6 +6329,9 @@ body.design-command .dashboard { grid-row: 7; }
 }
 
 @media (max-width: 900px) {
+  .full-width-gate-stack { grid-template-columns: minmax(0, 1fr); padding: 10px; gap: 10px; }
+  .unified-gate-head { align-items: flex-start; }
+  .unified-gate-head strong { font-size: 12px; }
   .shell,
   body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto; }
   .pair-decision-deck { grid-row: 1; }

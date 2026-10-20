@@ -59,7 +59,12 @@
         <div class="paper-position-jump">詳細を見る <b aria-hidden="true">›</b></div>
       </a>
       <section id="full-width-chart-stack" class="full-width-chart-stack" aria-label="EUR/USD・USD/JPY 全幅チャート"></section>
-      <section id="full-width-gate-stack" class="full-width-gate-stack" aria-label="品質ゲート判断検証 全幅表示"></section>
+      <section id="full-width-gate-stack" class="full-width-gate-stack" aria-label="仮想運用・品質ゲート検証">
+        <div class="unified-gate-head">
+          <div><span>仮想運用・品質ゲート検証</span><small>採用済み条件と検証候補を同じ場所で比較。資金台帳は検証の公平性を守るため分離します</small></div>
+          <strong>すべて仮想取引</strong>
+        </div>
+      </section>
       <div class="left-rail">
       <aside class="briefing-panel briefing-dock" aria-label="AIブリーフィング">
         <span>AIブリーフィング</span>
@@ -179,8 +184,8 @@
           <button type="button" data-mobile-target="eurusd-pivot-panel">ピボット</button>
           <button type="button" data-mobile-target="eurusd-timeframes">時間足予測</button>
           <button type="button" data-mobile-target="validation-control-panel">予測検証</button>
-          <button type="button" data-mobile-target="paper-trading-panel">公式口座</button>
-          <button type="button" data-mobile-target="shadow-paper-trading-panel">学習口座</button>
+          <button type="button" data-mobile-target="paper-trading-panel">採用条件</button>
+          <button type="button" data-mobile-target="shadow-paper-trading-panel">検証候補</button>
         </nav>
 
         <section id="finance-monitor-panel" class="finance-monitor-wrap calm" aria-label="世界市場パルス">
@@ -541,7 +546,7 @@
 
         <section id="paper-trading-panel" class="paper-trading-wrap official waiting" aria-label="1000万円公式デモ取引">
           <div class="paper-trading-head">
-            <div><span>公式口座｜EUR/USD・USD/JPY 共通1,000万円</span><small>2通貨で資金と損失枠を共有・品質ゲート通過時のみ発注・実資金には接続しません</small></div>
+            <div><span>採用済み条件口座｜EUR/USD・USD/JPY 共通1,000万円</span><small>品質ゲート通過時だけ仮想発注する現在方式の成績</small></div>
             <strong id="paper-trading-status">品質ゲートを監視中</strong>
           </div>
           <div id="paper-trading" class="paper-trading"></div>
@@ -560,7 +565,7 @@
 
         <section id="shadow-paper-trading-panel" class="paper-trading-wrap shadow waiting" aria-label="1000万円学習用シャドー口座">
           <div class="paper-trading-head">
-            <div><span>学習口座｜EUR/USD 1,000万円 シャドー運用</span><small>確定15分シグナルを品質ゲート不合格でも検証・実資金は使いません</small></div>
+            <div><span>検証候補口座｜EUR/USD 1,000万円</span><small>ゲートで見送った確定15分シグナルも仮想実行し、採用条件と比較</small></div>
             <strong id="shadow-paper-trading-status">確定15分足を監視中</strong>
           </div>
           <div id="shadow-paper-trading" class="paper-trading"></div>
@@ -568,7 +573,7 @@
 
         <section id="gate-verification-panel" class="gate-verification-wrap" aria-label="品質ゲート判断検証">
           <div class="paper-trading-head">
-            <div><span>品質ゲート判断検証</span><small>公式口座と学習口座の比較・今後のゲート閾値学習用</small></div>
+            <div><span>品質ゲート判断検証</span><small>見送りで防いだ損失と逃した利益を比較し、ゲート閾値を検証</small></div>
             <strong>推定コスト控除後</strong>
           </div>
           <div id="paper-trading-comparison" class="paper-trading-comparison"></div>

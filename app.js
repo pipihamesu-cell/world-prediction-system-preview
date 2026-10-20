@@ -240,18 +240,10 @@ function initFullWidthCharts() {
 }
 
 function initFullWidthGateVerification() {
-  const panel = document.querySelector(".gate-verification-wrap");
-  if (!panel || !fullWidthGateStackEl) return;
-  const anchor = document.createComment("original-position:.gate-verification-wrap");
-  panel.parentNode.insertBefore(anchor, panel);
-  const media = window.matchMedia("(min-width: 901px)");
-  const arrange = () => {
-    if (media.matches) fullWidthGateStackEl.appendChild(panel);
-    else anchor.parentNode.insertBefore(panel, anchor.nextSibling);
-    fullWidthGateStackEl.hidden = !media.matches;
-  };
-  arrange();
-  media.addEventListener?.("change", arrange);
+  const panels = [paperTradingPanelEl, shadowPaperTradingPanelEl, document.querySelector(".gate-verification-wrap")].filter(Boolean);
+  if (!panels.length || !fullWidthGateStackEl) return;
+  panels.forEach((panel) => fullWidthGateStackEl.appendChild(panel));
+  fullWidthGateStackEl.hidden = false;
 }
 
 function initResponsiveIntelligenceRail() {
@@ -3768,7 +3760,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>取引成績</span><strong>${data.stats?.winRate !== null && data.stats?.winRate !== undefined ? `${Math.round(Number(data.stats.winRate) * 100)}%` : "--"}</strong><small>${data.stats?.wins || 0}勝 ${data.stats?.losses || 0}敗 / ${data.stats?.trades || 0}取引</small></div>
     </div>
     <div class="paper-model-version">
-      <span>口座区分 <strong>${shadow ? "学習用シャドー" : "公式・2通貨共通口座"}</strong></span>
+      <span>口座区分 <strong>${shadow ? "検証候補・ゲート外" : "採用済み条件・2通貨共通"}</strong></span>
       <span>稼働予測モデル <strong>${data.activeModelLabel || data.activeModelVersion || data.currentSignal?.modelId || "確認中"}</strong></span>
       <span class="auto-upgrade">${shadow ? "品質ゲート外も検証" : `昇格判定 ${data.promotionDecision || "現行維持"}`}</span>
     </div>
@@ -3972,8 +3964,8 @@ function renderPaperTrading(official, shadow, comparison) {
   const unitsLabel = (row) => Number(row.baseUnits || 0) > 0 ? `${Number(row.baseUnits).toLocaleString("ja-JP")}通貨` : "--";
   paperTradingComparisonEl.innerHTML = `
     <div class="gate-summary-grid">
-      <div><span>公式口座</span><strong>${yen(comparison.official?.equity)}</strong><small>${comparison.official?.trades || 0}取引 / 勝率 ${comparison.official?.winRate == null ? "--" : `${Math.round(comparison.official.winRate * 100)}%`}</small></div>
-      <div><span>学習口座</span><strong>${yen(comparison.shadow?.equity)}</strong><small>${comparison.shadow?.trades || 0}取引 / 勝率 ${comparison.shadow?.winRate == null ? "--" : `${Math.round(comparison.shadow.winRate * 100)}%`}</small></div>
+      <div><span>採用済み条件</span><strong>${yen(comparison.official?.equity)}</strong><small>${comparison.official?.trades || 0}取引 / 勝率 ${comparison.official?.winRate == null ? "--" : `${Math.round(comparison.official.winRate * 100)}%`}</small></div>
+      <div><span>検証候補</span><strong>${yen(comparison.shadow?.equity)}</strong><small>${comparison.shadow?.trades || 0}取引 / 勝率 ${comparison.shadow?.winRate == null ? "--" : `${Math.round(comparison.shadow.winRate * 100)}%`}</small></div>
       <div><span>品質ゲートで見送って正解</span><strong>${gate.skippedCorrectly || 0}件</strong><small>回避損失 ${yen(gate.avoidedLossJpy)}</small></div>
       <div><span>見送りによる機会損失</span><strong>${gate.missedOpportunities || 0}件</strong><small>逸失利益 ${yen(gate.missedProfitJpy)}</small></div>
     </div>

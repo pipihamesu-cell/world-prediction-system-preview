@@ -1786,7 +1786,8 @@ function renderDesktopOperations(ops, access) {
       </div>
       <div class="assessment-evidence">
         <small>公式デモ ${assessment.paperTrades || 0}/${assessment.minimumPaperTrades || 30}回</small>
-        <small>収益率 ${assessment.paperReturnPct == null ? "--" : `${Number(assessment.paperReturnPct).toFixed(3)}%`} / PF ${assessment.paperProfitFactor == null ? "--" : Number(assessment.paperProfitFactor).toFixed(2)}</small>
+        <small>公式勝率 ${assessment.paperWinRate == null ? "--" : `${(Number(assessment.paperWinRate) * 100).toFixed(1)}%`} / 収益率 ${assessment.paperReturnPct == null ? "--" : `${Number(assessment.paperReturnPct).toFixed(3)}%`} / PF ${assessment.paperProfitFactor == null ? "--" : Number(assessment.paperProfitFactor).toFixed(2)}</small>
+        <small>照合済み方向予測 ${assessment.verifiedDirectionalHitRate == null ? "--" : `${(Number(assessment.verifiedDirectionalHitRate) * 100).toFixed(1)}%`} / ${assessment.verifiedDirectionalSamples || 0}件</small>
         <small>厳格実績認定 ${elite.score ?? 0}/100 / ${elite.status || "判定準備中"}</small>
         ${elite.blockers?.[0] ? `<span>${elite.blockers[0]}</span>` : ""}
         ${(assessment.blockers || []).slice(0, 3).map((item) => `<span>${item}</span>`).join("")}
@@ -2294,10 +2295,10 @@ function renderFxAnalysisPartner(partner) {
             </div>
             <div class="fx-analysis-validation">
               <b>前向き検証</b>
-              <span>15分 ${validation.m15?.samples || 0}/${minimumSamples}</span>
-              <span>1時間 ${validation.h1?.samples || 0}/${minimumSamples}</span>
-              <span>4時間 ${validation.h4?.samples || 0}/${minimumSamples}</span>
-              <small>WAITは損失回避と利益逸失を分離。標本到達まで予測へ反映しません。</small>
+              <span>15分 有効${validation.m15?.samples || 0}/${minimumSamples}・未照合${validation.m15?.pendingSamples || 0}・無効${validation.m15?.invalidSamples || 0}・勝率${validation.m15?.winRate == null ? "--" : `${(Number(validation.m15.winRate) * 100).toFixed(1)}%`}</span>
+              <span>1時間 有効${validation.h1?.samples || 0}/${minimumSamples}・未照合${validation.h1?.pendingSamples || 0}・無効${validation.h1?.invalidSamples || 0}・勝率${validation.h1?.winRate == null ? "--" : `${(Number(validation.h1.winRate) * 100).toFixed(1)}%`}</span>
+              <span>4時間 有効${validation.h4?.samples || 0}/${minimumSamples}・未照合${validation.h4?.pendingSamples || 0}・無効${validation.h4?.invalidSamples || 0}・勝率${validation.h4?.winRate == null ? "--" : `${(Number(validation.h4.winRate) * 100).toFixed(1)}%`}</span>
+              <small>15分ごとに全判断を固定保存。各期限は重複しない標本だけを採点し、WAIT・無効・未照合も隠しません。</small>
             </div>
             <div class="fx-analysis-fundamentals">
               <div><b>買い材料</b><span>${safeText((pair.fundamentals?.buyFactors || []).join(" / ") || "明確な材料なし")}</span></div>

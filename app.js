@@ -2993,11 +2993,13 @@ function renderYenCrossCommand(command) {
       </div><p>${command.directionChallenger.safeguard}</p>
     </div>` : ""}
     ${command.featureChallenger ? `<div class="yen-cross-challenger feature ${command.featureChallenger.promotable ? "promotable" : "shadow"}">
-      <header><div><span>USD/JPY 9特徴量AI影モデル</span><strong>${command.featureChallenger.status}</strong></div><b>${command.featureChallenger.promotable ? "昇格候補" : "本番未採用"}</b></header>
+      <header><div><span>USD/JPY ${command.featureChallenger.featureKeys?.length || 16}特徴量AI影モデル</span><strong>${command.featureChallenger.status}</strong></div><b>${command.featureChallenger.promotable ? "昇格候補" : "本番未採用"}</b></header>
       <div>
         <article><span>独立学習</span><strong>${command.featureChallenger.train?.samples ?? command.featureChallenger.trainSamples ?? 0}件</strong><small>重複10分予測を除外</small></article>
-        <article><span>未来側検証</span><strong>${command.featureChallenger.validation?.trades ?? 0}/${command.featureChallenger.validation?.minimumTrades ?? 30}取引</strong><small>方向一致 ${command.featureChallenger.validation?.hitRate == null ? "--" : `${Math.round(command.featureChallenger.validation.hitRate * 100)}%`}</small></article>
+        <article><span>ウォークフォワード</span><strong>${command.featureChallenger.validation?.trades ?? 0}/${command.featureChallenger.validation?.minimumTrades ?? 30}取引</strong><small>${command.featureChallenger.validation?.folds ?? 0}回 / 方向一致 ${command.featureChallenger.validation?.hitRate == null ? "--" : `${Math.round(command.featureChallenger.validation.hitRate * 100)}%`}</small></article>
         <article><span>コスト後改善</span><strong>${command.featureChallenger.validation?.improvementPct == null ? "--" : `${Number(command.featureChallenger.validation.improvementPct) >= 0 ? "+" : ""}${Number(command.featureChallenger.validation.improvementPct).toFixed(3)}%`}</strong><small>主特徴 ${command.featureChallenger.importance?.[0]?.key || "蓄積中"}</small></article>
+        <article><span>現在の影判断</span><strong>${command.featureChallenger.liveShadow?.officialDirection || "WAIT"}</strong><small>生 ${command.featureChallenger.liveShadow ? `${Math.round(command.featureChallenger.liveShadow.rawProbability * 100)}%` : "--"} / 補正 ${command.featureChallenger.liveShadow ? `${Math.round(command.featureChallenger.liveShadow.calibratedProbability * 100)}%` : "--"}</small></article>
+        <article><span>利用可能要因</span><strong>${command.featureChallenger.featureDiagnostics?.usable ?? 0}/${command.featureChallenger.featureDiagnostics?.total ?? command.featureChallenger.featureKeys?.length ?? 0}</strong><small>未稼働 ${command.featureChallenger.featureDiagnostics?.unavailable?.length || 0}要因</small></article>
       </div><p>${command.featureChallenger.safeguard}</p>
     </div>` : ""}
     <div class="segment-release-board ${usdGuard.blocked ? "blocked" : usdGuard.segmentReleased ? "released" : "learning"}">

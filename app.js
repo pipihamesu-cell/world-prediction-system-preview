@@ -4049,12 +4049,15 @@ function renderTradeOpportunityMonitor(paperTrading, probabilitySimulation, yenC
   const readiness = conditions.length ? Math.round(metCount / conditions.length * 100) : 0;
   const active = Boolean(paperTrading.position);
   const plans = deriveTradeScenarioPlans(paperTrading);
+  const evidenceBlocker = (candidate, fallback) => candidate.pairPerformanceGate?.officialEntryAllowed === false
+    ? candidate.pairPerformanceGate.label
+    : fallback;
   tradeOpportunityPanelEl.className = `trade-opportunity-wrap ${active ? "active" : readiness >= 75 ? "near" : "waiting"}`;
   tradeOpportunityStatusEl.textContent = active ? `${paperTrading.position.pairLabel || "通貨ペア"}を保有中` : `発注準備度 ${readiness}%`;
   const row = (label, candidate, blocker) => `<article class="${candidate.eligible ? "eligible" : "blocked"}"><div><span>${label}</span><strong>${candidate.eligible ? (candidate.trialMode ? "低リスク試験候補" : "通常発注候補") : "見送り"}</strong></div><b>${Math.round(Number(candidate.confidence || 0) * 100)}%</b><small>${blocker || (candidate.eligible ? "全条件を通過" : "品質条件を確認中")}</small></article>`;
   tradeOpportunityEl.innerHTML = `
     <div class="trade-opportunity-summary"><div><span>公式共通口座</span><strong>${Number(paperTrading.equity || 0).toLocaleString("ja-JP")}円</strong><small>同時保有1件</small></div><div><span>前向き方向標本</span><strong>${forward.directionSamples || 0}/60件</strong><small>方向一致 ${forward.hitRate == null ? "--" : `${Math.round(forward.hitRate * 100)}%`}</small></div><div><span>コスト込み取引</span><strong>${paper.samples || 0}/30件</strong><small>PF ${paper.profitFactor == null ? "--" : Number(paper.profitFactor).toFixed(2)}</small></div><div><span>現在の発注準備度</span><strong>${readiness}%</strong><small>${metCount}/${conditions.length}条件通過</small></div></div>
-    <div class="trade-opportunity-candidates">${row("EUR/USD", eur, eurEmbargo?.active ? eurEmbargo.reason : (paperTrading.blockers || [])[0])}${row("USD/JPY", usd, usdBlockers[0])}</div>
+    <div class="trade-opportunity-candidates">${row("EUR/USD", eur, evidenceBlocker(eur, eurEmbargo?.active ? eurEmbargo.reason : (paperTrading.blockers || [])[0]))}${row("USD/JPY", usd, evidenceBlocker(usd, usdBlockers[0]))}</div>
     <div class="trade-opportunity-candidates">${plans.map((plan) => `<article class="${plan.active ? "eligible" : "blocked"}"><div><span>${plan.pairLabel || plan.assetId}</span><strong>${plan.active ? "仮想予約シナリオ" : "シナリオ待機"}</strong></div><b>${Math.round(Number(plan.probability || 0) * 100)}%</b><small>${plan.active ? `${plan.triggerRule} / 発動 ${Number(plan.triggerPrice).toFixed(plan.assetId === "usdjpy" ? 3 : 5)} / SL ${Number(plan.stopPrice).toFixed(plan.assetId === "usdjpy" ? 3 : 5)} / TP ${Number(plan.targetPrice).toFixed(plan.assetId === "usdjpy" ? 3 : 5)} / ${plan.lots}ロット` : plan.status}</small></article>`).join("")}</div>
     <p>${active ? "保有中のため新規候補は待機します。" : "通常ゲート通過時は0.5%リスク、標本蓄積中は重要指標回避・65%以上・価格照合済みの場合だけ0.1%リスクで試験します。"}</p>`;
 }

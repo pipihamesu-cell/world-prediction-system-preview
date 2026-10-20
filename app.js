@@ -325,7 +325,7 @@ function initMobileSectionTabs() {
   const groups = {
     decision: [
       "#finance-monitor-panel", "#alert-panel", "#fx-analysis-partner-panel", "#eurusd-command-panel", "#yen-cross-command-panel", "#swing-compass-panel",
-      "#probability-simulation-panel", ".eurusd-timeframes-wrap", "#currency-strength-panel",
+      ".eurusd-timeframes-wrap", "#currency-strength-panel",
       "#eurusd-pivot-panel", "#usdjpy-pivot-panel", "#time-machine-panel", "#command-center-panel", "#ai-question-panel", ".intelligence-grid",
       ".scenario-wrap"
     ],
@@ -2186,7 +2186,7 @@ function renderImportantInfo(items) {
   `).join("");
 }
 
-function renderEurusdCommand(command, market) {
+function renderEurusdCommand(command, market, sim = null) {
   if (!command || !market) {
     eurusdCommandEl.innerHTML = `<div class="eurusd-command-empty">EUR/USD司令塔を準備中です。</div>`;
     return;
@@ -2197,6 +2197,14 @@ function renderEurusdCommand(command, market) {
   const confidence = command.confidence || {};
   const reflection = command.latestReflection;
   const topNews = command.topNews;
+  const simulation = sim || {};
+  const scenarios = simulation.scenarios || [];
+  const calibration = simulation.calibration || {};
+  const gate = simulation.qualityGate || {};
+  const votes = simulation.modelVotes || {};
+  const performanceGuard = simulation.timeframePerformanceGuard || {};
+  const calibratedProbability = Math.round(Number(simulation.probabilities?.calibratedMain || 0) * 100);
+  const formatSimulationPrice = (value) => Number(value || 0).toLocaleString("ja-JP", { minimumFractionDigits: 5, maximumFractionDigits: 5 });
   eurusdCommandEl.innerHTML = `
     <div class="command-main">
       <div class="command-stance">
@@ -2213,6 +2221,21 @@ function renderEurusdCommand(command, market) {
     <div class="command-drivers">
       ${(command.drivers || []).map((item) => `<span>${item}</span>`).join("")}
     </div>
+    ${sim ? `<div class="command-probability">
+      <div class="command-probability-head">
+        <div><span>予測確率・品質判定</span><strong>${simulation.status || "計算中"} ${calibratedProbability}%</strong></div>
+        <div class="${gate.currentAccepted ? "accepted" : "rejected"}"><span>現在判断</span><strong>${gate.currentAccepted ? "検証候補" : "見送り"}</strong><small>${gate.reason || gate.status || "判定中"}</small></div>
+      </div>
+      <div class="command-scenarios">
+        ${scenarios.map((item) => `<div><span>${item.label}</span><i><b style="width:${Math.max(2, Math.round(Number(item.probability || 0) * 100))}%"></b></i><strong>${Math.round(Number(item.probability || 0) * 100)}%</strong></div>`).join("")}
+      </div>
+      <div class="command-probability-grid">
+        <div><span>分布レンジ 10-90%</span><strong>${formatSimulationPrice(simulation.rangePrice?.low)} - ${formatSimulationPrice(simulation.rangePrice?.high)}</strong><small>中央値 ${formatSimulationPrice(simulation.rangePrice?.mid)}</small></div>
+        <div><span>開始からの方向一致</span><strong>${calibration.actualHitRate == null ? "--" : `${Math.round(Number(calibration.actualHitRate) * 100)}%`}</strong><small>${calibration.samples || 0}件 / Brier ${calibration.brierScore ?? "--"}</small></div>
+        <div><span>6モデル合議</span><strong>${votes.label || "集計中"}</strong><small>一致 ${votes.agreement || 0}/${votes.models?.length || 6}</small></div>
+        <div><span>低成績時間足</span><strong>${performanceGuard.status || "成績蓄積中"}</strong><small>${performanceGuard.active ? performanceGuard.weakTimeframes.map((row) => `${row.label} ${Math.round(Number(row.hitRate || 0) * 100)}%→重み${Math.round(Number(row.weight || 0) * 100)}%`).join(" / ") : performanceGuard.method || "前向き成績を監視"}</small></div>
+      </div>
+    </div>` : ""}
     <div class="confidence-breakdown">
       <div class="confidence-breakdown-head">
         <span>信頼度分解</span>
@@ -4730,14 +4753,13 @@ async function loadSnapshot(forceFull = false) {
     renderGeopoliticalRisk(snapshot.fundamentalNews);
     renderCurrencyStrength(snapshot.currencyStrength, snapshot.executionCost);
     renderFxAnalysisPartner(snapshot.fxTradeAnalysisPartner);
-    renderEurusdCommand(snapshot.eurusdCommand, (snapshot.markets || []).find((market) => market.id === "eurusd"));
+    renderEurusdCommand(snapshot.eurusdCommand, (snapshot.markets || []).find((market) => market.id === "eurusd"), snapshot.probabilitySimulation);
     renderYenCrossCommand(snapshot.yenCrossCommand);
     renderEuroSovereignSpread(snapshot.euroSovereignSpread);
     renderEurusdPivotChart(snapshot.eurusdPivotChart, selectedPivotTimeframe);
     renderUsdjpyPivotChart(snapshot.usdjpyPivotChart, selectedUsdjpyPivotTimeframe);
     renderPivotTradeOverlays(snapshot.paperTrading, snapshot.markets);
     renderSwingCompass(snapshot.swingTradeCompass);
-    renderProbabilitySimulation(snapshot.probabilitySimulation);
     if (detailMode === "full") renderConformalCalibration(snapshot.eurusdConformal);
     if (detailMode === "full") renderChampionChallenger(snapshot.championChallenger);
     renderValidationControl(snapshot.leakageAudit, snapshot.threeWayGate, snapshot.attributionLedger);

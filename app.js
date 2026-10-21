@@ -4824,9 +4824,12 @@ async function loadSnapshot(forceFull = false) {
 
 function deliveryCadence() {
   const mode = latestSnapshot?.deliveryBandwidth?.mode || "normal";
-  if (mode === "critical") return { snapshot: 15 * 60 * 1000, liveFx: 3 * 60 * 1000, full: 2 * 60 * 60 * 1000 };
-  if (mode === "saving") return { snapshot: 10 * 60 * 1000, liveFx: 2 * 60 * 1000, full: 60 * 60 * 1000 };
-  return { snapshot: 5 * 60 * 1000, liveFx: 60 * 1000, full: 30 * 60 * 1000 };
+  const hostname = globalThis.location?.hostname || "";
+  const localRealtime = NATIVE_APP_MODE || ["localhost", "127.0.0.1"].includes(hostname)
+    || /^10\./.test(hostname) || /^192\.168\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+  if (mode === "critical") return { snapshot: 15 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 60 * 1000, full: 2 * 60 * 60 * 1000 };
+  if (mode === "saving") return { snapshot: 10 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 30 * 1000, full: 60 * 60 * 1000 };
+  return { snapshot: 5 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 15 * 1000, full: 30 * 60 * 1000 };
 }
 
 function scheduleSnapshotRefresh() {

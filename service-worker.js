@@ -1,4 +1,4 @@
-const CACHE_NAME = "world-prediction-system-v197";
+const CACHE_NAME = "world-prediction-system-v199";
 const scopedUrl = (path = "") => new URL(path, self.registration.scope).pathname;
 const APP_SHELL = [
   "",

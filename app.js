@@ -3388,6 +3388,32 @@ function renderMapLiveFx(markets, generatedAt = new Date().toISOString()) {
   mapLiveFxTimeEl.textContent = new Date(generatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function mergeLiveFxIntoSnapshot(rows = [], generatedAt = new Date().toISOString()) {
+  if (!latestSnapshot || !rows.length) return;
+  const liveById = new Map(rows.map((row) => [row.id, row]));
+  latestSnapshot.markets = (latestSnapshot.markets || []).map((market) => {
+    const live = liveById.get(market.id);
+    if (!live) return market;
+    return {
+      ...market,
+      quote: {
+        ...(market.quote || {}),
+        value: Number(live.value),
+        change24h: Number(live.changePct || 0),
+        provider: live.provider,
+        at: live.at,
+        freshnessSeconds: Number(live.freshnessSeconds),
+        synthetic: live.synthetic === true,
+        consensusVerified: live.consensusVerified === true,
+        trustedSourceCount: Number(live.sourceCount || 0),
+        sourceCount: Number(live.sourceCount || 0),
+        sourceDeviationPct: Number(live.sourceDeviationPct || 0)
+      }
+    };
+  });
+  latestSnapshot.generatedAt = generatedAt || latestSnapshot.generatedAt;
+}
+
 async function refreshMapLiveFx() {
   if (!mapLiveFxEl || document.hidden) return;
   try {
@@ -3399,11 +3425,21 @@ async function refreshMapLiveFx() {
     if (!response.ok) throw new Error(`API ${response.status}`);
     liveFxEtag = response.headers.get("etag") || liveFxEtag;
     const payload = await response.json();
-    renderMapLiveFx(payload.markets || [], payload.generatedAt);
+    const liveMarkets = payload.markets || [];
+    renderMapLiveFx(liveMarkets, payload.generatedAt);
+    mergeLiveFxIntoSnapshot(liveMarkets, payload.generatedAt);
+    if (latestSnapshot) {
+      renderPairDecisionDeck(latestSnapshot);
+      renderMarketTape(latestSnapshot.markets);
+      renderForecastNewsflash(
+        latestSnapshot.eurusdTimeframes || [],
+        latestSnapshot.markets.find((market) => market.id === "eurusd")
+      );
+    }
     if (payload.paperTrading) {
       renderPaperTrading(payload.paperTrading, latestSnapshot?.shadowPaperTrading, latestSnapshot?.paperTradingComparison);
       renderTradeOpportunityMonitor(payload.paperTrading, latestSnapshot?.probabilitySimulation, latestSnapshot?.yenCrossCommand, latestSnapshot?.threeWayGate);
-      renderPivotTradeOverlays(payload.paperTrading, payload.markets || latestSnapshot?.markets);
+      renderPivotTradeOverlays(payload.paperTrading, latestSnapshot?.markets || liveMarkets);
       if (latestSnapshot) latestSnapshot.paperTrading = payload.paperTrading;
     }
     if (payload.yttDemoTrading) {

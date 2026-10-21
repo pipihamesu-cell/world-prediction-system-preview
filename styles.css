@@ -5364,6 +5364,25 @@ body.design-command .finance-hotspots { background: #091117; }
 .gate-summary-grid > div:last-child { border-right: 0; }
 .gate-summary-grid span, .gate-summary-grid small { display: block; color: var(--muted); font-size: 10px; }
 .gate-summary-grid strong { display: block; margin: 5px 0; color: var(--text); font-size: 16px; }
+.gate-net-opportunity { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; margin-top: 8px; padding: 9px 10px; border-left: 3px solid var(--green); background: rgba(46,229,157,.07); }
+.gate-net-opportunity.missed { border-left-color: var(--amber); background: rgba(244,211,94,.08); }
+.gate-net-opportunity span,.gate-net-opportunity small { color: var(--muted); font-size: 10px; }
+.gate-net-opportunity strong { color: var(--green); font-size: 13px; }
+.gate-net-opportunity.missed strong { color: var(--amber); }
+.gate-release-policy { margin-top: 10px; border: 1px solid rgba(97,216,255,.18); }
+.gate-release-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.gate-release-grid article { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 10px; min-width: 0; padding: 9px 10px; border-top: 1px solid rgba(97,216,255,.12); border-right: 1px solid rgba(97,216,255,.1); }
+.gate-release-grid article:nth-child(2n) { border-right: 0; }
+.gate-release-grid article.trial { background: rgba(244,211,94,.07); }
+.gate-release-grid article.verified { background: rgba(46,229,157,.07); }
+.gate-release-grid span,.gate-release-grid small { display: block; color: var(--muted); font-size: 9px; }
+.gate-release-grid strong { display: block; margin-top: 3px; color: var(--text); font-size: 11px; }
+.gate-release-grid article.trial strong { color: var(--amber); }
+.gate-release-grid article.verified strong { color: var(--green); }
+.gate-release-grid b { color: var(--text); font-size: 13px; }
+.gate-release-grid b.up { color: var(--green); }
+.gate-release-grid b.down { color: var(--red); }
+.gate-release-grid small { grid-column: 1 / -1; line-height: 1.45; }
 .paper-trade-history { margin-top: 10px; border: 1px solid rgba(218, 233, 224, 0.1); }
 .paper-history-head { padding: 9px 10px; display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
 .paper-history-head strong { color: var(--text); }
@@ -6417,6 +6436,9 @@ body.design-command .dashboard { grid-row: 7; }
   }
   .unified-gate-head { align-items: flex-start; }
   .unified-gate-head strong { font-size: 12px; }
+  .gate-release-grid { grid-template-columns: minmax(0,1fr); }
+  .gate-release-grid article { border-right: 0; }
+  .gate-net-opportunity { grid-template-columns: 1fr; gap: 4px; }
   .shell,
   body.design-command .shell { grid-template-rows: auto 50px auto auto auto auto auto; }
   .pair-decision-deck { grid-row: 1; }

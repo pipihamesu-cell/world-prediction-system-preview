@@ -3808,6 +3808,13 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
   const tone = data.position ? (data.position.side === "long" ? "up" : "down") : data.riskLocked ? "locked" : "waiting";
   const yen = (value) => `${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
   const signedYen = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${yen(value)}`;
+  const validationTierLabel = (tier, riskPct = 0.1) => tier === "fundamental"
+    ? `重要材料検証 ${riskPct}%`
+    : tier === "counterfactual_release"
+      ? `選択解除・1ロット試験 ${riskPct}%`
+      : tier === "trial"
+        ? `低リスク試験 ${riskPct}%`
+        : "通常検証";
   panelEl.className = `paper-trading-wrap ${shadow ? "shadow" : "official"} ${tone}`;
   statusEl.textContent = `${data.action || "監視中"} / 総資産 ${yen(data.equity)}`;
   const position = data.position;
@@ -3889,6 +3896,10 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>公式口座・回復昇格ゲート</span><strong>${data.shadowRecoveryGate.label}</strong></div>
       <small>学習口座の直近 ${data.shadowRecoveryGate.samples}/${data.shadowRecoveryGate.minimumSamples}件 / 期待値 ${data.shadowRecoveryGate.expectancyJpy == null ? "--" : signedYen(data.shadowRecoveryGate.expectancyJpy)} / PF ${data.shadowRecoveryGate.profitFactor == null ? "--" : Number(data.shadowRecoveryGate.profitFactor).toFixed(2)} / 95%下限 ${data.shadowRecoveryGate.expectancy95?.low == null ? "--" : signedYen(data.shadowRecoveryGate.expectancy95.low)}</small>
     </div>` : ""}
+    ${!shadow && data.counterfactualReleaseGate ? `<div class="paper-regime-guard ${data.counterfactualReleaseGate.accepted ? "stable" : "waiting"}">
+      <div><span>見送り解除・局面方向別</span><strong>${data.counterfactualReleaseGate.label}</strong></div>
+      <small>${data.counterfactualReleaseGate.regime || "未分類"} / ${data.counterfactualReleaseGate.direction === "up" ? "買い" : data.counterfactualReleaseGate.direction === "down" ? "売り" : "方向待ち"} / ${data.counterfactualReleaseGate.samples || 0}/${data.counterfactualReleaseGate.minimumTrialSamples || 12}件 / 判定損益 ${signedYen(data.counterfactualReleaseGate.netPnlJpy)} / PF ${data.counterfactualReleaseGate.profitFactor == null ? "--" : Number(data.counterfactualReleaseGate.profitFactor).toFixed(2)} / ${data.counterfactualReleaseGate.accepted ? `最大${data.counterfactualReleaseGate.maxLots || 1}ロット・口座リスク${data.counterfactualReleaseGate.riskPerTradePct || 0.05}%` : data.counterfactualReleaseGate.reason}</small>
+    </div>` : ""}
     ${!shadow && data.regimeDecisionValidation ? `<div class="paper-entry-policies">
       <div class="paper-entry-policy-head"><span>4時間売買判断・独立前向き検証</span><strong>${data.regimeDecisionValidation.samples}/${data.regimeDecisionValidation.minimumSamples}標本</strong></div>
       <div class="paper-entry-policy-lock"><span>重複除外 ${data.regimeDecisionValidation.overlappingSamplesExcluded || 0}件</span><small>${data.regimeDecisionValidation.safeguard}</small></div>
@@ -3897,7 +3908,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     <div class="paper-action ${tone}">
       <div><span>現在の判断</span><strong>${data.action || "監視中"}</strong><small>${data.actionDetail || "品質ゲートを監視しています。"}</small></div>
       ${position ? `
-        <div><span>保有銘柄・方向</span><strong>${position.pairLabel || "EUR/USD"} ${position.side === "long" ? "買い / LONG" : "売り / SHORT"}</strong><small>${position.validationTier === "fundamental" ? "重要材料・低リスク / " : position.validationTier === "trial" ? "低リスク試験 / " : "通常検証 / "}想定元本 ${yen(position.notionalJpy)}</small></div>
+        <div><span>保有銘柄・方向</span><strong>${position.pairLabel || "EUR/USD"} ${position.side === "long" ? "買い / LONG" : "売り / SHORT"}</strong><small>${validationTierLabel(position.validationTier, position.riskPerTradePct ?? 0.1)} / 想定元本 ${yen(position.notionalJpy)}</small></div>
         <div><span>約定・現在値</span><strong>${Number(position.entryPrice).toFixed(priceDigits)} → ${Number(position.currentPrice).toFixed(priceDigits)}</strong><small>${new Date(position.openedAt).toLocaleString("ja-JP")}開始</small></div>
         <div><span>損切り・利確</span><strong>${Number(position.stopPrice).toFixed(priceDigits)} / ${Number(position.targetPrice).toFixed(priceDigits)}</strong><small>最大保有 ${position.maxHoldingMinutes}分</small></div>
         <div><span>損失上限（コスト込）</span><strong>${yen(estimatedMaxLossJpy)}</strong><small>予算 ${yen(position.riskBudget)} / ${Number(position.lossAndCostPct || position.stopPct || 0).toFixed(3)}%</small></div>
@@ -3906,7 +3917,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
         <div><span>出口までの距離</span><strong>損切 ${Number(position.stopDistancePct || 0).toFixed(3)}% / 利確 ${Number(position.targetDistancePct || 0).toFixed(3)}%</strong><small>${position.quoteConsensusVerified ? "複数価格照合済み" : "価格照合未完了"} / 鮮度 ${Math.round(Number(position.quoteFreshnessSeconds || 0))}秒</small></div>` : ""}
       ` : `<div><span>ポジション</span><strong>保有なし</strong><small>${shadow ? "次の確定15分シグナルを待機" : "品質基準を通過するまで注文しません"}</small></div>`}
     </div>
-    ${snapshot ? `<div class="paper-entry-snapshot"><span>固定保存したエントリー情報</span><strong>${snapshot.modelLabel || snapshot.modelId || "--"} / ${snapshot.signalDirection === "up" || snapshot.direction === "up" ? "上" : "下"} / ${Math.round(Number(snapshot.signalProbability ?? snapshot.probability ?? 0) * 100)}%</strong><small>${snapshot.validationTier === "fundamental" ? `重要材料検証 ${snapshot.riskPerTradePct ?? 0.1}%` : snapshot.validationTier === "trial" ? `低リスク試験 ${snapshot.riskPerTradePct ?? 0.1}%` : "通常検証"} ・ 局面 ${snapshot.regime?.label || snapshot.regime?.key || "未分類"} ・ ゲート ${snapshot.validationTier === "fundamental" ? snapshot.qualityGateReason : snapshot.qualityGateAccepted ? "通過" : `不合格: ${snapshot.qualityGateReason || "基準未達"}`} ・ ドリフト ${snapshot.conformalDrift?.label || snapshot.conformalDrift?.state || "なし"}</small></div>` : ""}
+    ${snapshot ? `<div class="paper-entry-snapshot"><span>固定保存したエントリー情報</span><strong>${snapshot.modelLabel || snapshot.modelId || "--"} / ${snapshot.signalDirection === "up" || snapshot.direction === "up" ? "上" : "下"} / ${Math.round(Number(snapshot.signalProbability ?? snapshot.probability ?? 0) * 100)}%</strong><small>${validationTierLabel(snapshot.validationTier, snapshot.riskPerTradePct ?? 0.1)} ・ 局面 ${snapshot.regime?.label || snapshot.regime?.key || "未分類"} ・ ゲート ${snapshot.validationTier === "fundamental" || snapshot.validationTier === "counterfactual_release" ? snapshot.qualityGateReason : snapshot.qualityGateAccepted ? "通過" : `不合格: ${snapshot.qualityGateReason || "基準未達"}`} ・ ドリフト ${snapshot.conformalDrift?.label || snapshot.conformalDrift?.state || "なし"}</small></div>` : ""}
     <div class="paper-condition-grid">
       <div><span>次の発注条件</span>${conditions.map((condition) => `<small class="${condition.met ? "met" : "unmet"}">${condition.met ? "✓" : "×"} ${condition.label}</small>`).join("") || "<small>判定待ち</small>"}</div>
       <div><span>発注を妨げている条件</span>${(data.blockers || []).map((item) => `<small class="unmet">${item}</small>`).join("") || "<small class=\"met\">なし</small>"}</div>
@@ -3918,7 +3929,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div class="paper-history-head"><span>決済履歴</span><strong>${data.recentTrades?.length || 0}件表示</strong></div>
       ${(data.recentTrades || []).length ? `
         <div class="paper-table-scroll"><table><thead><tr><th>決済日時</th><th>通貨ペア</th><th>方向</th><th>開始値</th><th>決済値</th><th>損益</th><th>コスト</th><th>モデル</th><th>理由</th></tr></thead><tbody>
-        ${(data.recentTrades || []).map((trade) => { const digits = trade.pairLabel === "USD/JPY" ? 3 : 5; return `<tr><td>${new Date(trade.closedAt).toLocaleString("ja-JP")}</td><td>${trade.pairLabel || "EUR/USD"}${trade.validationTier === "fundamental" ? "<small>重要材料</small>" : trade.validationTier === "trial" ? "<small>低リスク試験</small>" : ""}</td><td>${trade.side === "long" ? "買い" : "売り"}</td><td>${Number(trade.entryPrice).toFixed(digits)}</td><td>${Number(trade.exitPrice).toFixed(digits)}</td><td class="${Number(trade.netPnl || 0) >= 0 ? "up" : "down"}">${signedYen(trade.netPnl)}</td><td>${yen(trade.costs)}</td><td>${trade.entrySnapshot?.modelId || trade.entryModelVersion || "legacy"}${trade.exitModelVersion && trade.exitModelVersion !== trade.entryModelVersion ? ` → ${trade.exitModelVersion}` : ""}</td><td>${trade.reason}${trade.entrySnapshot?.qualityGateAccepted === false && trade.validationTier !== "fundamental" ? `<small>ゲート不合格: ${trade.entrySnapshot.qualityGateReason || "基準未達"}</small>` : trade.validationTier === "fundamental" ? `<small>${trade.entrySnapshot?.qualityGateReason || "重要材料一致"}</small>` : ""}</td></tr>`; }).join("")}
+        ${(data.recentTrades || []).map((trade) => { const digits = trade.pairLabel === "USD/JPY" ? 3 : 5; return `<tr><td>${new Date(trade.closedAt).toLocaleString("ja-JP")}</td><td>${trade.pairLabel || "EUR/USD"}${trade.validationTier === "fundamental" ? "<small>重要材料</small>" : trade.validationTier === "counterfactual_release" ? "<small>選択解除・1ロット</small>" : trade.validationTier === "trial" ? "<small>低リスク試験</small>" : ""}</td><td>${trade.side === "long" ? "買い" : "売り"}</td><td>${Number(trade.entryPrice).toFixed(digits)}</td><td>${Number(trade.exitPrice).toFixed(digits)}</td><td class="${Number(trade.netPnl || 0) >= 0 ? "up" : "down"}">${signedYen(trade.netPnl)}</td><td>${yen(trade.costs)}</td><td>${trade.entrySnapshot?.modelId || trade.entryModelVersion || "legacy"}${trade.exitModelVersion && trade.exitModelVersion !== trade.entryModelVersion ? ` → ${trade.exitModelVersion}` : ""}</td><td>${trade.reason}${trade.entrySnapshot?.qualityGateAccepted === false && !["fundamental", "counterfactual_release"].includes(trade.validationTier) ? `<small>ゲート不合格: ${trade.entrySnapshot.qualityGateReason || "基準未達"}</small>` : ["fundamental", "counterfactual_release"].includes(trade.validationTier) ? `<small>${trade.entrySnapshot?.qualityGateReason || "選択条件一致"}</small>` : ""}</td></tr>`; }).join("")}
         </tbody></table></div>
       ` : `<div class="paper-history-empty">まだ決済取引はありません。${shadow ? "条件を満たす次の確定15分シグナルから学習を開始します。" : "予測品質ゲートを通過した時点から前向き検証を開始します。"}</div>`}
     </div>
@@ -4035,6 +4046,9 @@ function renderPaperTrading(official, shadow, comparison) {
   const pairLabel = (row) => row.pairLabel || (row.assetId === "usdjpy" ? "USD/JPY" : "EUR/USD");
   const lotLabel = (row) => Number(row.lots || 0) > 0 ? `${row.lotSizingMode === "historical_estimate" ? "約" : ""}${Number(row.lots).toFixed(0)}ロット` : "--";
   const unitsLabel = (row) => Number(row.baseUnits || 0) > 0 ? `${Number(row.baseUnits).toLocaleString("ja-JP")}通貨` : "--";
+  const regimeLabel = (key) => ({ trend: "トレンド", range: "レンジ", highVolatility: "高変動", eventPolicy: "重要指標・政策" }[key] || key || "未分類");
+  const directionLabel = (direction) => direction === "up" ? "買い" : direction === "down" ? "売り" : "--";
+  const releaseStatus = (row) => row.verified ? "統計確認・選択解除" : row.trialEligible ? "1ロット解除試験" : "見送り維持";
   paperTradingComparisonEl.innerHTML = `
     <div class="gate-summary-grid">
       <div><span>採用済み条件</span><strong>${yen(comparison.official?.equity)}</strong><small>${comparison.official?.trades || 0}取引 / 勝率 ${comparison.official?.winRate == null ? "--" : `${Math.round(comparison.official.winRate * 100)}%`}</small></div>
@@ -4042,8 +4056,13 @@ function renderPaperTrading(official, shadow, comparison) {
       <div><span>品質ゲートで見送って正解</span><strong>${gate.skippedCorrectly || 0}件</strong><small>回避損失 ${yen(gate.avoidedLossJpy)}</small></div>
       <div><span>見送りによる機会損失</span><strong>${gate.missedOpportunities || 0}件</strong><small>逸失利益 ${yen(gate.missedProfitJpy)}</small></div>
     </div>
+    <div class="gate-net-opportunity ${Number(gate.netOpportunityJpy || 0) > 0 ? "missed" : "protected"}"><span>見送りの純効果</span><strong>${Number(gate.netOpportunityJpy || 0) > 0 ? `利益逸失超過 ${yen(gate.netOpportunityJpy)}` : `損失回避超過 ${yen(Math.abs(Number(gate.netOpportunityJpy || 0)))}`}</strong><small>全解除せず、局面と売買方向ごとに再検証します</small></div>
     <div class="gate-instrument-summary">
       ${(gate.pairBreakdown || []).map((row) => `<article><div><span>検証対象</span><strong>${pairLabel(row)}</strong></div><div><span>買い</span><strong>${row.buyTrades || 0}件 / ${Number(row.buyLots || 0).toFixed(0)}ロット</strong></div><div><span>売り</span><strong>${row.sellTrades || 0}件 / ${Number(row.sellLots || 0).toFixed(0)}ロット</strong></div><div><span>判定損益</span><strong class="${Number(row.netPnlJpy || 0) >= 0 ? "up" : "down"}">${yen(row.netPnlJpy)}</strong></div></article>`).join("") || `<article><div><span>検証対象</span><strong>EUR/USD</strong></div><div><span>売買履歴</span><strong>蓄積中</strong></div></article>`}
+    </div>
+    <div class="gate-release-policy">
+      <div class="paper-history-head"><span>選択的見送り解除</span><strong>12件で最大1ロット試験 / 30件・95%下限プラスで正式確認</strong></div>
+      <div class="gate-release-grid">${(gate.releaseSegments || []).map((row) => `<article class="${row.verified ? "verified" : row.trialEligible ? "trial" : "hold"}"><div><span>${regimeLabel(row.regime)}・${directionLabel(row.direction)}</span><strong>${releaseStatus(row)}</strong></div><b class="${Number(row.netPnlJpy || 0) >= 0 ? "up" : "down"}">${Number(row.netPnlJpy || 0) >= 0 ? "+" : ""}${yen(row.netPnlJpy)}</b><small>${row.samples}件 / ${row.wins}勝${row.losses}敗 / PF ${row.profitFactor == null ? "--" : Number.isFinite(row.profitFactor) ? Number(row.profitFactor).toFixed(2) : "∞"} / 95%下限 ${row.expectancy95?.low == null ? "--" : yen(row.expectancy95.low)}</small></article>`).join("") || `<article class="hold"><div><span>局面別検証</span><strong>標本蓄積中</strong></div><small>見送り取引の結果を方向別に保存しています</small></article>`}</div>
     </div>
     <div class="paper-trade-history">
       <div class="paper-history-head"><span>ゲート判断検証</span><strong>${gate.samples || 0}標本 / 買い ${gate.buyTrades || 0}件・約${Number(gate.buyLots || 0).toFixed(0)}ロット / 売り ${gate.sellTrades || 0}件・約${Number(gate.sellLots || 0).toFixed(0)}ロット（過去換算含む）</strong></div>

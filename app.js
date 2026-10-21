@@ -1823,14 +1823,17 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
   const isHttps = location.protocol === "https:";
   const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone;
   const sleepIndependent = Boolean(cloud.sleepIndependent);
-  const nativePushReady = NATIVE_APP_MODE && ["instant-ready", "server-waiting-firebase", "registering"].includes(nativePushStatus?.state);
-  const notifyReady = nativePushReady || (notificationSupported() && notificationsEnabled && Notification.permission === "granted");
+  const nativePushReady = NATIVE_APP_MODE && ["local-monitor-ready", "instant-ready", "server-waiting-firebase"].includes(nativePushStatus?.state);
+  const webPushReady = !STATIC_PREVIEW_MODE && notificationSupported() && notificationsEnabled && Notification.permission === "granted";
+  const notifyReady = nativePushReady || webPushReady;
   const notificationPermission = NATIVE_APP_MODE
     ? nativePushStatus?.state === "permission-denied" ? "denied" : nativePushReady ? "granted" : "default"
     : "Notification" in window ? Notification.permission : "unsupported";
   const notificationHelp = notificationPermission === "denied"
     ? "通知が拒否済みです。Android Chromeの設定 → サイトの設定 → 通知 → world-prediction-system.onrender.com を許可してください。"
-    : !notificationSupported()
+    : STATIC_PREVIEW_MODE && !NATIVE_APP_MODE
+      ? "GitHub Pages確認版だけでは、画面を閉じた後の通知登録はできません。Androidアプリ最新版を使用してください。"
+      : !notificationSupported()
       ? NATIVE_APP_MODE ? "Androidアプリの通知登録を確認しています。" : "ChromeでHTTPS公開URLを直接開いてください。LINE・ChatGPTなどのアプリ内ブラウザでは通知を登録できない場合があります。"
       : notificationStatusMessage || "ボタンを押すとAndroidの通知許可画面が表示されます。";
   const voiceReady = voiceSupported() && voiceEnabled;
@@ -1847,7 +1850,7 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
       : nativeDelivery.attemptedAt
         ? `${nativeDelivery.result || "即時通知確認中"} / ${formatTime(nativeDelivery.attemptedAt)}`
         : NATIVE_APP_MODE
-          ? nativePushStatus?.state === "instant-ready" ? "Firebase即時通知の端末登録済み" : "15分監視を継続しながら即時通知設定を確認中"
+          ? nativePushStatus?.state === "instant-ready" ? "Firebase即時通知の端末登録済み" : nativePushReady ? "端末の15分バックグラウンド監視を登録済み" : "端末通知を未登録"
           : "テスト通知はまだ送信されていません。通知を有効化すると1回だけ届きます。";
   androidAccessStatusEl.textContent = publicReady
     ? sleepIndependent ? "PCスリープ対応" : "ネット公開URLあり"
@@ -1889,9 +1892,10 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
       <div class="${notifyReady ? "ok" : "warn"}"><strong>${notifyReady ? "ON" : "OFF"}</strong><span>開始・終了</span><small>約定値、ロット、決済値、損益を通知</small></div>
     </div>
     <div class="android-quick-actions">
-      <button type="button" data-enable-notify ${(NATIVE_APP_MODE || notificationSupported()) && !notificationBusy ? "" : "disabled"}>${notificationBusy ? "登録中..." : notifyReady ? "通知を再登録" : "通知を有効化"}</button>
+      <button type="button" data-enable-notify ${(NATIVE_APP_MODE || (notificationSupported() && !STATIC_PREVIEW_MODE)) && !notificationBusy ? "" : "disabled"}>${notificationBusy ? "登録中..." : notifyReady ? "通知を再登録" : "通知を有効化"}</button>
       <button type="button" data-test-notify ${notifyReady && !notificationBusy ? "" : "disabled"}>テスト通知を送る</button>
       <button type="button" data-enable-voice ${voiceSupported() ? "" : "disabled"}>AI音声を開始</button>
+      <a href="https://pipihamesu-cell.github.io/world-prediction-system-preview/downloads/World-Prediction-System-Android-latest.apk">Android最新版</a>
       <a href="${mainUrl || "#"}" target="_blank" rel="noreferrer">スマホ用URLを開く</a>
     </div>
     <div class="notification-feedback ${notifyReady ? "ok" : notificationPermission === "denied" ? "error" : "info"}" role="status">
@@ -1934,11 +1938,16 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
     notificationStatusMessage = "テスト通知を送信しています。";
     renderAndroidAccess(access, highConfidenceNotification);
     try {
-      const response = await fetch("/api/push/test", { method: "POST" });
-      const result = await response.json();
-      notificationStatusMessage = result.ok
-        ? `${result.sent}台へテスト通知を送信しました。`
-        : `テスト通知は未達です。${result.result || "通知を再登録してください。"}`;
+      if (NATIVE_APP_MODE) {
+        await globalThis.WpsNative.showNotificationTest();
+        notificationStatusMessage = "端末へテスト通知を送信しました。";
+      } else {
+        const response = await fetch("/api/push/test", { method: "POST" });
+        const result = await response.json();
+        notificationStatusMessage = result.ok
+          ? `${result.sent}台へテスト通知を送信しました。`
+          : `テスト通知は未達です。${result.result || "通知を再登録してください。"}`;
+      }
     } catch (error) {
       notificationStatusMessage = `テスト通知に失敗しました: ${error.message || "通信エラー"}`;
     } finally {
@@ -4418,10 +4427,10 @@ async function disableBackgroundPush() {
 async function requestNotificationAccess() {
   if (NATIVE_APP_MODE) {
     try {
-      nativePushStatus = await globalThis.WpsNative.ensureRemotePushRegistration();
-      notificationsEnabled = nativePushStatus?.state !== "permission-denied";
+      nativePushStatus = await globalThis.WpsNative.enableTradeNotifications();
+      notificationsEnabled = ["local-monitor-ready", "instant-ready", "server-waiting-firebase"].includes(nativePushStatus?.state);
       notificationStatusMessage = notificationsEnabled
-        ? "Android通知を登録中です。公式仮想取引の開始・終了だけを通知します。"
+        ? "Android通知を登録しました。端末が15分ごとに確認し、公式仮想取引の開始・終了だけを通知します。"
         : "Android設定で通知を許可してください。";
     } catch (error) {
       notificationsEnabled = false;
@@ -4433,6 +4442,13 @@ async function requestNotificationAccess() {
   }
   if (!notificationSupported()) {
     notificationStatusMessage = "このブラウザでは通知を利用できません。Android版ChromeでHTTPS公開URLを直接開いてください。";
+    return false;
+  }
+  if (STATIC_PREVIEW_MODE) {
+    notificationsEnabled = false;
+    notificationStatusMessage = "GitHub Pages確認版はバックグラウンド通知を送信できません。Androidアプリ最新版で登録してください。";
+    localStorage.setItem("worldPredictionNotifications", "off");
+    updateNotificationUi();
     return false;
   }
   if (Notification.permission === "denied") {

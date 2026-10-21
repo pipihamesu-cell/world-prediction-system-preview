@@ -78,6 +78,20 @@
     return requested.display || "denied";
   }
 
+  async function showNotificationTest() {
+    if (!native || !localNotifications) throw new Error("Android端末通知を利用できません");
+    const permission = await ensureNotificationPermission();
+    if (permission !== "granted") throw new Error("Android設定で通知を許可してください");
+    await localNotifications.schedule({ notifications: [{
+      id: notificationId(`test:${Date.now()}`),
+      title: "世界予測システム 通知テスト",
+      body: "登録できました。仮想取引の開始・終了時に通知します。",
+      schedule: { at: new Date(Date.now() + 500) },
+      extra: { url: "#paper-trading-panel", kind: "registration-test" }
+    }] });
+    return true;
+  }
+
   function normalizedApiUrl(value) {
     const raw = String(value || "").trim().replace(/\/+$/, "");
     return /^https:\/\//i.test(raw) ? raw : "";
@@ -106,13 +120,14 @@
   async function registerTokenWithServer(token) {
     const connection = await pushConnection();
     if (!connection.apiUrl || !connection.pin) {
-      await setValue(keys.pushStatus, JSON.stringify({ state: "waiting-connection", at: new Date().toISOString() }));
-      return { state: "waiting-connection" };
+      const status = { state: "local-monitor-ready", remoteState: "waiting-connection", at: new Date().toISOString() };
+      await setValue(keys.pushStatus, JSON.stringify(status));
+      return status;
     }
     const response = await fetch(`${connection.apiUrl}/api/native-push/register`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-access-pin": connection.pin },
-      body: JSON.stringify({ token, platform: "android", appVersion: "0.3.1", deviceLabel: navigator.userAgent || "Android" })
+      body: JSON.stringify({ token, platform: "android", appVersion: "0.3.2", deviceLabel: navigator.userAgent || "Android" })
     });
     if (!response.ok) throw new Error(`通知端末登録に失敗しました (${response.status})`);
     const result = await response.json();
@@ -131,6 +146,33 @@
     }
     await pushNotifications.register();
     return { state: "registering" };
+  }
+
+  async function enableTradeNotifications() {
+    const permission = await ensureNotificationPermission();
+    if (permission !== "granted") {
+      const status = { state: "permission-denied", at: new Date().toISOString() };
+      await setValue(keys.pushStatus, JSON.stringify(status));
+      return status;
+    }
+    const status = {
+      state: "local-monitor-ready",
+      remoteState: pushNotifications ? "registering" : "unavailable",
+      monitoringMinutes: 15,
+      at: new Date().toISOString()
+    };
+    await setValue(keys.pushStatus, JSON.stringify(status));
+    if (pushNotifications) {
+      ensureRemotePushRegistration().catch(async (error) => {
+        await setValue(keys.pushStatus, JSON.stringify({
+          ...status,
+          remoteState: "registration-error",
+          message: error?.message || "FCM登録失敗"
+        }));
+      });
+    }
+    await showNotificationTest();
+    return status;
   }
 
   async function getPushStatus() {
@@ -163,11 +205,11 @@
 
   pushNotifications?.addListener?.("registration", (registration) => {
     registerTokenWithServer(registration?.value || "").catch(async (error) => {
-      await setValue(keys.pushStatus, JSON.stringify({ state: "registration-error", message: error?.message || "通知登録失敗", at: new Date().toISOString() }));
+      await setValue(keys.pushStatus, JSON.stringify({ state: "local-monitor-ready", remoteState: "registration-error", message: error?.message || "即時通知登録失敗", monitoringMinutes: 15, at: new Date().toISOString() }));
     });
   });
   pushNotifications?.addListener?.("registrationError", async (error) => {
-    await setValue(keys.pushStatus, JSON.stringify({ state: "registration-error", message: error?.error || error?.message || "FCM登録失敗", at: new Date().toISOString() }));
+    await setValue(keys.pushStatus, JSON.stringify({ state: "local-monitor-ready", remoteState: "registration-error", message: error?.error || error?.message || "即時通知登録失敗", monitoringMinutes: 15, at: new Date().toISOString() }));
   });
   pushNotifications?.addListener?.("pushNotificationActionPerformed", (action) => {
     const target = action?.notification?.data?.url || "#paper-trading-panel";
@@ -191,6 +233,8 @@
     syncTradeNotifications,
     ensureNotificationPermission,
     ensureRemotePushRegistration,
+    enableTradeNotifications,
+    showNotificationTest,
     setPushConnection,
     getPushStatus
   });

@@ -127,7 +127,7 @@
     const response = await fetch(`${connection.apiUrl}/api/native-push/register`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-access-pin": connection.pin },
-      body: JSON.stringify({ token, platform: "android", appVersion: "0.3.2", deviceLabel: navigator.userAgent || "Android" })
+      body: JSON.stringify({ token, platform: "android", appVersion: "0.3.3", deviceLabel: navigator.userAgent || "Android" })
     });
     if (!response.ok) throw new Error(`通知端末登録に失敗しました (${response.status})`);
     const result = await response.json();

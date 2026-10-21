@@ -3755,11 +3755,16 @@ function showOpenedNotificationDetail() {
 
 function updateNotificationUi() {
   if (!notifyToggleEl) return;
-  const supported = notificationSupported();
+  const supported = NATIVE_APP_MODE || notificationSupported();
   notifyToggleEl.disabled = !supported;
-  notifyToggleEl.textContent = supported
-    ? notificationsEnabled && Notification.permission === "granted" ? "通知＋サイレン ON" : "通知＋サイレン OFF"
-    : "通知非対応";
+  if (!supported) {
+    notifyToggleEl.textContent = "通知非対応";
+    return;
+  }
+  const ready = NATIVE_APP_MODE
+    ? notificationsEnabled
+    : notificationsEnabled && Notification.permission === "granted";
+  notifyToggleEl.textContent = ready ? "通知＋サイレン ON" : "通知＋サイレン OFF";
 }
 
 function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = false } = {}) {

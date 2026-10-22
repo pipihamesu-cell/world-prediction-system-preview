@@ -426,8 +426,11 @@ let liveFxTimer = null;
 let latestEurusdPivotChart = null;
 let latestUsdjpyPivotChart = null;
 const previousLiveFxValues = new Map();
+const latestLiveFxById = new Map();
+const livePivotCandles = new Map();
 let mapAlertExpiryTimer = null;
 let eurusdPivotChart = null;
+let eurusdPivotSeries = null;
 let eurusdPivotResizeObserver = null;
 let selectedPivotTimeframe = localStorage.getItem("eurusdPivotTimeframe") || "h1";
 let selectedEurusdChartMode = localStorage.getItem("eurusdChartMode") === "spread" ? "spread" : "price";
@@ -439,6 +442,7 @@ const autoLineEnabled = {
   usdjpy: localStorage.getItem("usdjpyAutoLine") !== "off"
 };
 let usdjpyPivotChart = null;
+let usdjpyPivotSeries = null;
 let usdjpyPivotResizeObserver = null;
 let selectedProfitCalendarMonth = null;
 const globeLayers = { events: true, centers: true, flows: true, alerts: true, geopolitics: true };
@@ -578,6 +582,61 @@ function addPivotAutoLines(chart, LC, candles, enabled) {
   return lines;
 }
 
+function pivotTimeframeSeconds(timeframe) {
+  return ({ m15: 900, h1: 3600, h4: 14400, d1: 86400 })[timeframe] || 3600;
+}
+
+function buildLivePivotCandle(assetId, frame, timeframe) {
+  const live = latestLiveFxById.get(assetId);
+  const value = Number(live?.value);
+  const observedAt = Date.parse(live?.at || "");
+  const last = frame?.candles?.at(-1);
+  const lastTime = Math.floor(Date.parse(last?.date || "") / 1000);
+  if (!Number.isFinite(value) || !Number.isFinite(observedAt) || !Number.isFinite(lastTime)) return null;
+  const seconds = pivotTimeframeSeconds(timeframe);
+  const bucket = Math.floor(observedAt / 1000 / seconds) * seconds;
+  if (bucket < lastTime) return null;
+  const key = `${assetId}:${timeframe}`;
+  const previous = livePivotCandles.get(key);
+  const open = bucket === lastTime ? Number(last.open) : Number(last.close);
+  const baseHigh = bucket === lastTime ? Number(last.high) : open;
+  const baseLow = bucket === lastTime ? Number(last.low) : open;
+  const candle = {
+    time: bucket === lastTime ? lastTime : bucket,
+    open,
+    high: Math.max(baseHigh, value, previous?.time === bucket ? previous.high : value),
+    low: Math.min(baseLow, value, previous?.time === bucket ? previous.low : value),
+    close: value
+  };
+  livePivotCandles.set(key, candle);
+  return candle;
+}
+
+function appendLivePivotStatus(statusEl, live) {
+  if (!statusEl || !live?.at) return;
+  const base = statusEl.textContent.replace(/ \/ LIVE価格 .*$/, "");
+  const at = new Date(live.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  statusEl.textContent = `${base} / LIVE価格 1分以内 ${at}`;
+}
+
+function refreshLivePivotCandles(rows = []) {
+  for (const row of rows) latestLiveFxById.set(row.id, row);
+  const eurFrame = latestEurusdPivotChart?.frames?.[selectedPivotTimeframe];
+  const usdFrame = latestUsdjpyPivotChart?.frames?.[selectedUsdjpyPivotTimeframe];
+  if (selectedEurusdChartMode === "price" && eurFrame) {
+    const candle = buildLivePivotCandle("eurusd", eurFrame, selectedPivotTimeframe);
+    if (candle && eurusdPivotSeries?.update) eurusdPivotSeries.update(candle);
+    else if (candle && !window.LightweightCharts) renderEurusdPivotChart(latestEurusdPivotChart, selectedPivotTimeframe);
+    appendLivePivotStatus(eurusdPivotStatusEl, latestLiveFxById.get("eurusd"));
+  }
+  if (usdFrame) {
+    const candle = buildLivePivotCandle("usdjpy", usdFrame, selectedUsdjpyPivotTimeframe);
+    if (candle && usdjpyPivotSeries?.update) usdjpyPivotSeries.update(candle);
+    else if (candle && !window.LightweightCharts) renderUsdjpyPivotChart(latestUsdjpyPivotChart, selectedUsdjpyPivotTimeframe);
+    appendLivePivotStatus(usdjpyPivotStatusEl, latestLiveFxById.get("usdjpy"));
+  }
+}
+
 function renderPivotFallback(frame, timeframe, levelStyles, chartEl = eurusdPivotChartEl, symbol = "EUR/USD", decimals = 5, showAutoLines = true) {
   const candles = frame.candles.slice(-64).map((candle) => ({
     ...candle,
@@ -673,6 +732,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
     return;
   }
   eurusdPivotChart?.remove();
+  eurusdPivotSeries = null;
   eurusdPivotResizeObserver?.disconnect();
   eurusdPivotChartEl.innerHTML = "";
   const LC = window.LightweightCharts;
@@ -693,10 +753,13 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   const series = eurusdPivotChart.addSeries
     ? eurusdPivotChart.addSeries(LC.CandlestickSeries, seriesOptions)
     : eurusdPivotChart.addCandlestickSeries(seriesOptions);
+  eurusdPivotSeries = series;
   series.setData(frame.candles.map((candle) => ({
     time: Math.floor(new Date(candle.date).getTime() / 1000),
     open: Number(candle.open), high: Number(candle.high), low: Number(candle.low), close: Number(candle.close)
   })));
+  const liveCandle = buildLivePivotCandle("eurusd", frame, timeframe);
+  if (liveCandle) series.update(liveCandle);
   for (const [key, [title, color]] of Object.entries(levelStyles)) {
     const price = Number(frame.levels?.[key]);
     if (!Number.isFinite(price)) continue;
@@ -710,6 +773,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   eurusdPivotResizeObserver.observe(eurusdPivotChartEl);
   const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
   eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / AUTO ${autoLines.length}本 / 基準 ${calculated}`;
+  appendLivePivotStatus(eurusdPivotStatusEl, latestLiveFxById.get("eurusd"));
   eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `
     <div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>
   `).join("");
@@ -719,6 +783,7 @@ function renderEurusdSovereignSpreadChart() {
   if (!eurusdPivotChartEl || !eurusdPivotLevelsEl || !eurusdPivotStatusEl) return;
   eurusdPivotChart?.remove();
   eurusdPivotChart = null;
+  eurusdPivotSeries = null;
   eurusdPivotResizeObserver?.disconnect();
   eurusdPivotResizeObserver = null;
   eurusdPivotButtons.forEach((button) => {
@@ -1527,6 +1592,7 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
     return;
   }
   usdjpyPivotChart?.remove();
+  usdjpyPivotSeries = null;
   usdjpyPivotResizeObserver?.disconnect();
   usdjpyPivotChartEl.innerHTML = "";
   const LC = window.LightweightCharts;
@@ -1547,10 +1613,13 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
   const series = usdjpyPivotChart.addSeries
     ? usdjpyPivotChart.addSeries(LC.CandlestickSeries, options)
     : usdjpyPivotChart.addCandlestickSeries(options);
+  usdjpyPivotSeries = series;
   series.setData(frame.candles.map((candle) => ({
     time: Math.floor(new Date(candle.date).getTime() / 1000),
     open: Number(candle.open), high: Number(candle.high), low: Number(candle.low), close: Number(candle.close)
   })));
+  const liveCandle = buildLivePivotCandle("usdjpy", frame, timeframe);
+  if (liveCandle) series.update(liveCandle);
   for (const [key, [title, color]] of Object.entries(levelStyles)) {
     const price = Number(frame.levels?.[key]);
     if (Number.isFinite(price)) series.createPriceLine({ price, color, lineWidth: key === "p" ? 2 : 1, lineStyle: LC.LineStyle?.Dashed ?? 2, axisLabelVisible: true, title });
@@ -1562,6 +1631,7 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
   });
   usdjpyPivotResizeObserver.observe(usdjpyPivotChartEl);
   updateSummary();
+  appendLivePivotStatus(usdjpyPivotStatusEl, latestLiveFxById.get("usdjpy"));
 }
 
 function openMapEventDetail(marker) {
@@ -2492,15 +2562,16 @@ function renderPairDecisionDeck(snapshot) {
   const usdjpy = yenCommand.activePair || {};
   const eurusdFrames = snapshot?.eurusdTimeframes || [];
   const usdjpyFrames = yenCommand.timeframes || [];
+  const eurusdSimulation = snapshot?.probabilitySimulation || {};
   const findFrame = (items, key) => items.find((item) => item.key === key);
   const direction = (value) => value === "up" ? "buy" : value === "down" ? "sell" : "waiting";
   const action = (value) => value === "up" ? "買い" : value === "down" ? "売り" : "見送り";
   const arrow = (value) => value === "up" ? "↑" : value === "down" ? "↓" : "→";
   const horizon = (item) => item ? `${arrow(item.direction)} ${action(item.direction)} ${Math.round(Number(item.calibratedProbability ?? item.confidence ?? 0.5) * 100)}%` : "確認中";
   const price = (value, digits) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value).toFixed(digits) : "--";
-  const eurusdDirection = eurusdCommand.stanceTone || eurusdMarket?.forecast?.direction || "flat";
+  const eurusdDirection = eurusdSimulation.direction || eurusdCommand.stanceTone || eurusdMarket?.forecast?.direction || "flat";
   const usdjpyDirection = usdjpy.direction || "flat";
-  const eurusdConfidence = Number(eurusdCommand.confidence?.score || Number(eurusdMarket?.forecast?.confidence || 0) * 100);
+  const eurusdConfidence = Number(eurusdSimulation.probabilities?.calibratedMain ?? eurusdMarket?.forecast?.confidence ?? 0.5) * 100;
   const usdjpyConfidence = Number(usdjpy.confidence || usdjpyMarket?.forecast?.confidence || 0) * 100;
   const cards = [
     {
@@ -2510,7 +2581,7 @@ function renderPairDecisionDeck(snapshot) {
       current: eurusdMarket?.quote?.value ?? eurusdMarket?.forecast?.current,
       predicted: eurusdMarket?.forecast?.predicted,
       deltaPct: eurusdMarket?.forecast?.deltaPct,
-      confidence: eurusdConfidence,
+      confidence: eurusdDirection === "flat" ? null : eurusdConfidence,
       fresh: eurusdMarket?.quote?.freshnessSeconds,
       h4: findFrame(eurusdFrames, "h4"),
       d1: findFrame(eurusdFrames, "d1"),
@@ -2523,7 +2594,7 @@ function renderPairDecisionDeck(snapshot) {
       current: usdjpy.current ?? usdjpyMarket?.quote?.value,
       predicted: usdjpy.predicted ?? usdjpyMarket?.forecast?.predicted,
       deltaPct: usdjpy.deltaPct ?? usdjpyMarket?.forecast?.deltaPct,
-      confidence: usdjpyConfidence,
+      confidence: usdjpyDirection === "flat" ? null : usdjpyConfidence,
       fresh: usdjpy.freshnessSeconds ?? usdjpyMarket?.quote?.freshnessSeconds,
       h4: findFrame(usdjpyFrames, "h4"),
       d1: findFrame(usdjpyFrames, "d1"),
@@ -2536,7 +2607,7 @@ function renderPairDecisionDeck(snapshot) {
     const delta = Number(card.deltaPct || 0);
     return `<a class="pair-decision-card ${tone}" href="#${card.id}-pivot-panel" aria-label="${card.label} ${action(card.direction)}">
       <div class="pair-decision-symbol"><span>${card.label}</span><small>現在予測</small></div>
-      <div class="pair-decision-action"><b>${arrow(card.direction)}</b><strong>${action(card.direction)}</strong><em>信頼 ${Math.round(card.confidence || 0)}%</em></div>
+      <div class="pair-decision-action"><b>${arrow(card.direction)}</b><strong>${action(card.direction)}</strong><em>${card.direction === "flat" ? "方向確率 --" : `短期方向 ${Math.round(card.confidence)}%`}</em></div>
       <div class="pair-decision-price"><span>現在値</span><strong>${price(card.current, card.digits)}</strong><small>10分 ${price(card.predicted, card.digits)} / ${delta >= 0 ? "+" : ""}${delta.toFixed(4)}%</small></div>
       <div class="pair-decision-horizons"><span>4時間 <b>${horizon(card.h4)}</b></span><span>日足 <b>${horizon(card.d1)}</b></span></div>
       <div class="pair-decision-freshness"><i></i>${Number.isFinite(Number(card.fresh)) ? `価格 ${Math.round(Number(card.fresh))}秒前` : "価格時刻を確認中"}</div>
@@ -2596,7 +2667,7 @@ function renderProbabilitySimulation(sim) {
   if (!probabilitySimulationEl || !sim) return;
   const tone = sim.direction || "flat";
   probabilitySimulationPanelEl.className = `prob-sim-wrap ${tone}`;
-  probabilitySimulationStatusEl.textContent = `${sim.status || "計算中"} / 主方向信頼 ${Math.round(Number(sim.probabilities?.calibratedMain || 0) * 100)}%`;
+  probabilitySimulationStatusEl.textContent = `${sim.status || "計算中"} / 10分方向確率 ${Math.round(Number(sim.probabilities?.calibratedMain || 0) * 100)}%`;
   const scenarios = sim.scenarios || [];
   const calibration = sim.calibration || {};
   const conditional = sim.conditionalCalibration || {};
@@ -2615,7 +2686,7 @@ function renderProbabilitySimulation(sim) {
       <div class="prob-sim-verdict ${tone}">
         <span>${sim.method || "シミュレーション"}</span>
         <strong>${sim.status || "計算中"}</strong>
-        <small>${sim.simulations || 0}本 / 校正後の主方向信頼 ${Math.round(Number(sim.probabilities?.calibratedMain || 0) * 100)}%</small>
+        <small>${sim.simulations || 0}本 / 校正後の10分方向確率 ${Math.round(Number(sim.probabilities?.calibratedMain || 0) * 100)}%</small>
       </div>
       <div class="prob-sim-bars">
         ${scenarios.map((item) => `
@@ -3428,6 +3499,7 @@ async function refreshMapLiveFx() {
     const liveMarkets = payload.markets || [];
     renderMapLiveFx(liveMarkets, payload.generatedAt);
     mergeLiveFxIntoSnapshot(liveMarkets, payload.generatedAt);
+    refreshLivePivotCandles(liveMarkets);
     if (latestSnapshot) {
       renderPairDecisionDeck(latestSnapshot);
       renderMarketTape(latestSnapshot.markets);
@@ -3844,6 +3916,12 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <span>稼働予測モデル <strong>${data.activeModelLabel || data.activeModelVersion || data.currentSignal?.modelId || "確認中"}</strong></span>
       <span class="auto-upgrade">${shadow ? "品質ゲート外も検証" : `昇格判定 ${data.promotionDecision || "現行維持"}`}</span>
     </div>
+    ${!shadow && data.tradeProbabilityCalibration ? `<div class="paper-exit-strategy">
+      <div><span>公式取引確率（4時間）</span><strong>${Math.round(Number(data.tradeProbabilityCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>10分方向の元確率 ${Math.round(Number(data.tradeProbabilityCalibration.rawProbability || 0.5) * 100)}%</small></div>
+      <div><span>同局面・同方向の実績</span><strong>${data.tradeProbabilityCalibration.hitRate == null ? "蓄積中" : `${Math.round(Number(data.tradeProbabilityCalibration.hitRate) * 100)}%`}</strong><small>${data.tradeProbabilityCalibration.samples || 0}/${data.tradeProbabilityCalibration.minimumSamples || 30}独立標本</small></div>
+      <div><span>根拠充足率</span><strong>${Math.round(Number(data.tradeProbabilityCalibration.evidenceWeight || 0) * 100)}%</strong><small>4時間結果だけで校正</small></div>
+      <div><span>校正判断</span><strong>${data.tradeProbabilityCalibration.ready ? "実績校正" : "中立へ収縮"}</strong><small>${data.tradeProbabilityCalibration.label}</small></div>
+    </div>` : ""}
     ${shadow && data.exitStrategy ? `<div class="paper-exit-strategy">
       <div><span>出口戦略</span><strong>${data.exitStrategy.name}</strong><small>${data.exitStrategy.comparison?.decision || data.exitStrategy.status}</small></div>
       <div><span>利益保護</span><strong>1R建値 / 1.5R半分利確</strong><small>2Rから0.75R幅で追随</small></div>

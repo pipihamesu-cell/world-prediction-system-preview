@@ -3942,6 +3942,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>実保有時間</span><strong>${durationLabel(data.exitAudit.averageHoldingMinutes)} 平均</strong><small>中央値 ${durationLabel(data.exitAudit.medianHoldingMinutes)} / 最短 ${durationLabel(data.exitAudit.shortestHoldingMinutes)} / 最長 ${durationLabel(data.exitAudit.longestHoldingMinutes)}</small></div>
       <div><span>固定SL / TP</span><strong>逆行幅 / 1.6〜2.0R</strong><small>${data.exitAudit.policy.stop}。${data.exitAudit.policy.target}</small></div>
       <div><span>出口ルール監査</span><strong>${data.exitAudit.decision}</strong><small>${data.exitAudit.policy.promotion}</small></div>
+      ${data.exitPolicyEvidence ? `<div><span>同一取引比較の採用方式</span><strong>${data.exitPolicyEvidence.name}</strong><small>${data.exitPolicyEvidence.status}</small></div>` : ""}
     </div>` : ""}
     ${shadow && data.exitStrategy ? `<div class="paper-exit-strategy">
       <div><span>出口戦略</span><strong>${data.exitStrategy.name}</strong><small>${data.exitStrategy.comparison?.decision || data.exitStrategy.status}</small></div>

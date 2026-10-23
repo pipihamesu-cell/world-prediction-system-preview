@@ -582,6 +582,47 @@ function addPivotAutoLines(chart, LC, candles, enabled) {
   return lines;
 }
 
+function addPivotHistoryLines(chart, LC, frame, timeframe, levelStyles, liveTime = null) {
+  const history = Array.isArray(frame?.pivotHistory) ? frame.pivotHistory : [];
+  const interval = pivotTimeframeSeconds(timeframe);
+  const lastCandleTime = Math.floor(Date.parse(frame?.candles?.at(-1)?.date || "") / 1000);
+  const activeTime = Number.isFinite(Number(liveTime))
+    ? Number(liveTime)
+    : Number.isFinite(lastCandleTime) ? lastCandleTime + interval : null;
+  for (const [key, [title, color]] of Object.entries(levelStyles)) {
+    const rows = history.map((item) => ({
+      time: Math.floor(Date.parse(item.effectiveFrom) / 1000),
+      value: Number(item.levels?.[key])
+    })).filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
+    const current = Number(frame?.levels?.[key]);
+    if (Number.isFinite(current) && Number.isFinite(activeTime) && (!rows.length || activeTime > rows.at(-1).time)) {
+      rows.push({ time: activeTime, value: current });
+    }
+    if (!rows.length) continue;
+    const options = {
+      color,
+      lineWidth: key === "p" ? 2 : 1,
+      lineStyle: LC.LineStyle?.Dashed ?? 2,
+      lineType: LC.LineType?.WithSteps ?? 1,
+      pointMarkersVisible: false,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      title
+    };
+    const pivotSeries = chart.addSeries ? chart.addSeries(LC.LineSeries, options) : chart.addLineSeries(options);
+    pivotSeries.setData(rows);
+  }
+}
+
+function pivotBasisSummary(frame, decimals) {
+  const basis = frame?.basis || {};
+  const high = Number(basis.high);
+  const low = Number(basis.low);
+  const close = Number(basis.close);
+  if (![high, low, close].every(Number.isFinite)) return "";
+  return ` / 前確定足 H ${high.toFixed(decimals)} L ${low.toFixed(decimals)} C ${close.toFixed(decimals)}`;
+}
+
 function pivotTimeframeSeconds(timeframe) {
   return ({ m15: 900, h1: 3600, h4: 14400, d1: 86400 })[timeframe] || 3600;
 }
@@ -664,11 +705,21 @@ function renderPivotFallback(frame, timeframe, levelStyles, chartEl = eurusdPivo
     const py = y(price);
     return `<line x1="${margin.left}" y1="${py}" x2="${width - margin.right}" y2="${py}" class="pivot-svg-grid"/><text x="${width - margin.right + 8}" y="${py + 4}" class="pivot-svg-price">${price.toFixed(decimals)}</text>`;
   }).join("");
+  const history = Array.isArray(frame.pivotHistory) ? frame.pivotHistory : [];
   const pivotLines = Object.entries(levelStyles).map(([key, [label, color]]) => {
-    const price = Number(frame.levels?.[key]);
-    if (!Number.isFinite(price)) return "";
-    const py = y(price);
-    return `<line x1="${margin.left}" y1="${py}" x2="${width - margin.right}" y2="${py}" stroke="${color}" stroke-width="${key === "p" ? 2 : 1}" stroke-dasharray="7 5" opacity="0.88"/><text x="${width - margin.right - 5}" y="${py - 4}" text-anchor="end" fill="${color}" class="pivot-svg-level">${label}</text>`;
+    const rows = history.map((item) => {
+      const index = candles.findIndex((candle) => candle.date === item.effectiveFrom);
+      const value = Number(item.levels?.[key]);
+      return index < 0 || !Number.isFinite(value) ? null : { x: margin.left + step * (index + 0.5), value };
+    }).filter(Boolean);
+    const current = Number(frame.levels?.[key]);
+    if (Number.isFinite(current)) rows.push({ x: width - margin.right, value: current });
+    if (!rows.length) return "";
+    let path = `M ${rows[0].x} ${y(rows[0].value)}`;
+    for (const row of rows.slice(1)) path += ` H ${row.x} V ${y(row.value)}`;
+    path += ` H ${width - margin.right}`;
+    const last = rows.at(-1);
+    return `<path d="${path}" fill="none" stroke="${color}" stroke-width="${key === "p" ? 2 : 1}" stroke-dasharray="7 5" opacity="0.88"/><text x="${width - margin.right - 5}" y="${y(last.value) - 4}" text-anchor="end" fill="${color}" class="pivot-svg-level">${label}</text>`;
   }).join("");
   const autoLineSvg = (showAutoLines ? buildPivotAutoLines(candles) : []).map((line) => {
     const firstIndex = candles.findIndex((candle) => Math.floor(new Date(candle.date).getTime() / 1000) === line.anchors[0].time);
@@ -727,7 +778,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
     const autoLines = autoLineEnabled.eurusd ? buildPivotAutoLines(frame.candles) : [];
     renderPivotFallback(frame, timeframe, levelStyles, eurusdPivotChartEl, "EUR/USD", 5, autoLineEnabled.eurusd);
     const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
-    eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / AUTO ${autoLines.length}本 / 基準 ${calculated}`;
+    eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
     eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>`).join("");
     return;
   }
@@ -760,11 +811,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   })));
   const liveCandle = buildLivePivotCandle("eurusd", frame, timeframe);
   if (liveCandle) series.update(liveCandle);
-  for (const [key, [title, color]] of Object.entries(levelStyles)) {
-    const price = Number(frame.levels?.[key]);
-    if (!Number.isFinite(price)) continue;
-    series.createPriceLine({ price, color, lineWidth: key === "p" ? 2 : 1, lineStyle: LC.LineStyle?.Dashed ?? 2, axisLabelVisible: true, title });
-  }
+  addPivotHistoryLines(eurusdPivotChart, LC, frame, timeframe, levelStyles, liveCandle?.time);
   const autoLines = addPivotAutoLines(eurusdPivotChart, LC, frame.candles, autoLineEnabled.eurusd);
   eurusdPivotChart.timeScale().fitContent();
   eurusdPivotResizeObserver = new ResizeObserver(() => {
@@ -772,7 +819,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   });
   eurusdPivotResizeObserver.observe(eurusdPivotChartEl);
   const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
-  eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / AUTO ${autoLines.length}本 / 基準 ${calculated}`;
+  eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
   appendLivePivotStatus(eurusdPivotStatusEl, latestLiveFxById.get("eurusd"));
   eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `
     <div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>
@@ -1583,7 +1630,7 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
   const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
   const updateSummary = () => {
     const autoCount = autoLineEnabled.usdjpy ? buildPivotAutoLines(frame.candles).length : 0;
-    usdjpyPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / AUTO ${autoCount}本 / 基準 ${calculated}`;
+    usdjpyPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoCount}本 / 基準 ${calculated}${pivotBasisSummary(frame, decimals)}`;
     usdjpyPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(decimals)}</strong></div>`).join("");
   };
   if (!window.LightweightCharts) {
@@ -1620,10 +1667,7 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
   })));
   const liveCandle = buildLivePivotCandle("usdjpy", frame, timeframe);
   if (liveCandle) series.update(liveCandle);
-  for (const [key, [title, color]] of Object.entries(levelStyles)) {
-    const price = Number(frame.levels?.[key]);
-    if (Number.isFinite(price)) series.createPriceLine({ price, color, lineWidth: key === "p" ? 2 : 1, lineStyle: LC.LineStyle?.Dashed ?? 2, axisLabelVisible: true, title });
-  }
+  addPivotHistoryLines(usdjpyPivotChart, LC, frame, timeframe, levelStyles, liveCandle?.time);
   addPivotAutoLines(usdjpyPivotChart, LC, frame.candles, autoLineEnabled.usdjpy);
   usdjpyPivotChart.timeScale().fitContent();
   usdjpyPivotResizeObserver = new ResizeObserver(() => {

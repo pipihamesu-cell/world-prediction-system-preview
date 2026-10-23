@@ -6330,6 +6330,11 @@ body.design-command .price { font-family: ui-monospace, Consolas, monospace; }
 .pair-decision-heading span { color: var(--cyan); font: 800 10px ui-monospace, Consolas, monospace; }
 .pair-decision-heading strong { color: #f5fbfc; font-size: 17px; }
 .pair-decision-heading small { color: #8da2aa; font-size: 10px; }
+.top-manual-refresh { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 5px; padding: 7px 10px; color: #dff9ff; border: 1px solid rgba(97,216,255,.48); border-radius: 5px; background: #092630; cursor: pointer; }
+.top-manual-refresh:hover { background: #0d3643; }
+.top-manual-refresh:disabled { opacity: .58; cursor: wait; }
+.top-manual-refresh b { font-size: 18px; line-height: 1; }
+.top-manual-refresh em { font-size: 11px; font-style: normal; font-weight: 800; }
 .pair-decision-cards { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pair-decision-card {
   min-width: 0;
@@ -6460,6 +6465,7 @@ body.design-command .dashboard { grid-row: 7; }
   .pair-decision-heading span { font-size: 9px; }
   .pair-decision-heading strong { font-size: 14px; }
   .pair-decision-heading small { text-align: right; }
+  .top-manual-refresh { grid-column: 1 / -1; min-height: 38px; margin-top: 1px; }
   .pair-decision-card { min-height: 128px; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; gap: 5px 8px; padding: 9px 9px 7px; }
   .pair-decision-card + .pair-decision-card { box-shadow: inset 1px 0 rgba(218, 233, 224, .12); }
   .pair-decision-symbol span { font-size: 15px; }

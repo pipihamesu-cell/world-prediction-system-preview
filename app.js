@@ -5178,7 +5178,21 @@ document.addEventListener("visibilitychange", () => {
   loadSnapshot().finally(scheduleSnapshotRefresh);
   refreshMapLiveFx().finally(scheduleLiveFxRefresh);
 });
-refreshButton.addEventListener("click", loadSnapshot);
+refreshButton.addEventListener("click", async () => {
+  refreshButton.classList.add("refreshing");
+  const label = refreshButton.querySelector("em");
+  if (label) label.textContent = "更新中";
+  liveFxEtag = "";
+  snapshotEtag = "";
+  coreSnapshotEtag = "";
+  try {
+    if (!STATIC_PREVIEW_MODE) await refreshMapLiveFx();
+    await loadSnapshot(true);
+  } finally {
+    refreshButton.classList.remove("refreshing");
+    if (label) label.textContent = "今すぐ更新";
+  }
+});
 shockSearchInputEl?.addEventListener("input", () => renderShockLog(latestShockLogs));
 shockDirectionFilterEl?.addEventListener("change", () => renderShockLog(latestShockLogs));
 timeMachineEventEl?.addEventListener("change", () => {

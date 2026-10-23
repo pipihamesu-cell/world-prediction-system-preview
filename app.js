@@ -657,7 +657,8 @@ function appendLivePivotStatus(statusEl, live) {
   if (!statusEl || !live?.at) return;
   const base = statusEl.textContent.replace(/ \/ LIVE価格 .*$/, "");
   const at = new Date(live.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  statusEl.textContent = `${base} / LIVE価格 1分以内 ${at}`;
+  const age = Math.max(0, Math.round(Number(live.freshnessSeconds ?? (Date.now() - Date.parse(live.at)) / 1000)));
+  statusEl.textContent = `${base} / LIVE価格 ${age <= 75 ? `${age}秒前` : `遅延 ${age}秒`} ${at}`;
 }
 
 function refreshLivePivotCandles(rows = []) {
@@ -1401,7 +1402,7 @@ function renderMarkets(markets) {
         <div class="confidence">
           信頼度 ${(market.forecast.confidence * 100).toFixed(0)}% / 学習 ${market.forecast.calibration.samples}件
         </div>
-        <div class="quote-age ${market.quote.marketSession?.isOpen === false ? "closed" : Number(market.quote.freshnessSeconds || 0) > 180 ? "stale" : "fresh"}">
+        <div class="quote-age ${market.quote.marketSession?.isOpen === false ? "closed" : Number(market.quote.freshnessSeconds || 0) > 75 ? "stale" : "fresh"}">
           ${market.quote.marketSession?.isOpen === false ? "最終取引値" : "現在値"} ${formatQuoteAge(market)}
           ${market.quote.marketSession?.label ? ` / ${market.quote.marketSession.label}` : ""}
         </div>
@@ -3503,7 +3504,7 @@ function renderMapLiveFx(markets, generatedAt = new Date().toISOString()) {
   mapLiveFxTimeEl.textContent = new Date(generatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function mergeLiveFxIntoSnapshot(rows = [], generatedAt = new Date().toISOString()) {
+function mergeLiveFxIntoSnapshot(rows = [], generatedAt = new Date().toISOString(), payload = {}) {
   if (!latestSnapshot || !rows.length) return;
   const liveById = new Map(rows.map((row) => [row.id, row]));
   latestSnapshot.markets = (latestSnapshot.markets || []).map((market) => {
@@ -3526,7 +3527,10 @@ function mergeLiveFxIntoSnapshot(rows = [], generatedAt = new Date().toISOString
       }
     };
   });
-  latestSnapshot.generatedAt = generatedAt || latestSnapshot.generatedAt;
+  if (Array.isArray(payload.revaluedMarkets)) latestSnapshot.markets = payload.revaluedMarkets;
+  if (Array.isArray(payload.eurusdTimeframes)) latestSnapshot.eurusdTimeframes = payload.eurusdTimeframes;
+  if (payload.minuteRevaluation) latestSnapshot.minuteRevaluation = payload.minuteRevaluation;
+  latestSnapshot.marketDataAt = generatedAt || latestSnapshot.marketDataAt;
 }
 
 async function refreshMapLiveFx() {
@@ -3542,7 +3546,7 @@ async function refreshMapLiveFx() {
     const payload = await response.json();
     const liveMarkets = payload.markets || [];
     renderMapLiveFx(liveMarkets, payload.generatedAt);
-    mergeLiveFxIntoSnapshot(liveMarkets, payload.generatedAt);
+    mergeLiveFxIntoSnapshot(liveMarkets, payload.generatedAt, payload);
     refreshLivePivotCandles(liveMarkets);
     if (latestSnapshot) {
       renderPairDecisionDeck(latestSnapshot);
@@ -3551,6 +3555,7 @@ async function refreshMapLiveFx() {
         latestSnapshot.eurusdTimeframes || [],
         latestSnapshot.markets.find((market) => market.id === "eurusd")
       );
+      renderEurusdTimeframes(latestSnapshot.eurusdTimeframes || [], latestSnapshot.eurusdTimeframeLearning, latestSnapshot.dailyForecastReference);
     }
     if (payload.paperTrading) {
       renderPaperTrading(payload.paperTrading, latestSnapshot?.shadowPaperTrading, latestSnapshot?.paperTradingComparison);
@@ -5048,7 +5053,7 @@ function deliveryCadence() {
     || /^10\./.test(hostname) || /^192\.168\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
   if (mode === "critical") return { snapshot: 15 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 60 * 1000, full: 2 * 60 * 60 * 1000 };
   if (mode === "saving") return { snapshot: 10 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 30 * 1000, full: 60 * 60 * 1000 };
-  return { snapshot: 5 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 15 * 1000, full: 30 * 60 * 1000 };
+  return { snapshot: localRealtime ? 60 * 1000 : 5 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 15 * 1000, full: 30 * 60 * 1000 };
 }
 
 function scheduleSnapshotRefresh() {

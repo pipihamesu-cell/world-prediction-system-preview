@@ -4147,6 +4147,7 @@ function renderPaperTrading(official, shadow, comparison) {
   if (detailMode === "full") renderPaperAccount(shadow, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
   if (!paperTradingComparisonEl || !comparison) return;
   const gate = comparison.gateVerification || {};
+  const directionCalibration = comparison.directionProbabilityCalibration || {};
   const yen = (value) => `${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
   const sideLabel = (row) => (row.side === "long" || row.direction === "up") ? "買い" : (row.side === "short" || row.direction === "down") ? "売り" : "--";
   const pairLabel = (row) => row.pairLabel || (row.assetId === "usdjpy" ? "USD/JPY" : "EUR/USD");
@@ -4162,6 +4163,7 @@ function renderPaperTrading(official, shadow, comparison) {
       <div><span>品質ゲートで見送って正解</span><strong>${gate.skippedCorrectly || 0}件</strong><small>回避損失 ${yen(gate.avoidedLossJpy)}</small></div>
       <div><span>見送りによる機会損失</span><strong>${gate.missedOpportunities || 0}件</strong><small>逸失利益 ${yen(gate.missedProfitJpy)}</small></div>
     </div>
+    ${directionCalibration.adjustedProbability != null ? `<div class="gate-net-opportunity ${directionCalibration.overconfident ? "missed" : "protected"}"><span>15分方向確率の実績校正</span><strong>モデル ${Math.round(Number(directionCalibration.rawProbability || 0.5) * 100)}% → 実績校正 ${Math.round(Number(directionCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>方向一致 ${directionCalibration.hitRate == null ? "蓄積中" : `${Math.round(Number(directionCalibration.hitRate) * 100)}%`} / ${directionCalibration.samples || 0}件。4時間仮想取引の勝率・期待損益とは別指標です。</small></div>` : ""}
     <div class="gate-net-opportunity ${Number(gate.netOpportunityJpy || 0) > 0 ? "missed" : "protected"}"><span>見送りの純効果</span><strong>${Number(gate.netOpportunityJpy || 0) > 0 ? `利益逸失超過 ${yen(gate.netOpportunityJpy)}` : `損失回避超過 ${yen(Math.abs(Number(gate.netOpportunityJpy || 0)))}`}</strong><small>全解除せず、局面と売買方向ごとに再検証します</small></div>
     <div class="gate-instrument-summary">
       ${(gate.pairBreakdown || []).map((row) => `<article><div><span>検証対象</span><strong>${pairLabel(row)}</strong></div><div><span>買い</span><strong>${row.buyTrades || 0}件 / ${Number(row.buyLots || 0).toFixed(0)}ロット</strong></div><div><span>売り</span><strong>${row.sellTrades || 0}件 / ${Number(row.sellLots || 0).toFixed(0)}ロット</strong></div><div><span>判定損益</span><strong class="${Number(row.netPnlJpy || 0) >= 0 ? "up" : "down"}">${yen(row.netPnlJpy)}</strong></div></article>`).join("") || `<article><div><span>検証対象</span><strong>EUR/USD</strong></div><div><span>売買履歴</span><strong>蓄積中</strong></div></article>`}

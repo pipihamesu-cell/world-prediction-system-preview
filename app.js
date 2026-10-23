@@ -3931,6 +3931,12 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <span>稼働予測モデル <strong>${data.activeModelLabel || data.activeModelVersion || data.currentSignal?.modelId || "確認中"}</strong></span>
       <span class="auto-upgrade">${shadow ? "品質ゲート外も検証" : `昇格判定 ${data.promotionDecision || "現行維持"}`}</span>
     </div>
+    ${shadow && data.directionProbabilityCalibration ? `<div class="paper-exit-strategy">
+      <div><span>モデル出力（15分方向）</span><strong>${Math.round(Number(data.directionProbabilityCalibration.rawProbability || 0.5) * 100)}%</strong><small>候補抽出用の元確率</small></div>
+      <div><span>実績校正済み方向確率</span><strong>${Math.round(Number(data.directionProbabilityCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>${data.directionProbabilityCalibration.label}</small></div>
+      <div><span>実測方向一致率</span><strong>${data.directionProbabilityCalibration.hitRate == null ? "蓄積中" : `${Math.round(Number(data.directionProbabilityCalibration.hitRate) * 100)}%`}</strong><small>${data.directionProbabilityCalibration.samples || 0}件 / ${data.directionProbabilityCalibration.scope}</small></div>
+      <div><span>時間軸の区別</span><strong>15分方向 / 最大4時間損益</strong><small>${data.directionProbabilityCalibration.note}</small></div>
+    </div>` : ""}
     ${!shadow && data.tradeProbabilityCalibration ? `<div class="paper-exit-strategy">
       <div><span>公式取引確率（4時間）</span><strong>${Math.round(Number(data.tradeProbabilityCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>10分方向の元確率 ${Math.round(Number(data.tradeProbabilityCalibration.rawProbability || 0.5) * 100)}%</small></div>
       <div><span>同局面・同方向の実績</span><strong>${data.tradeProbabilityCalibration.hitRate == null ? "蓄積中" : `${Math.round(Number(data.tradeProbabilityCalibration.hitRate) * 100)}%`}</strong><small>${data.tradeProbabilityCalibration.samples || 0}/${data.tradeProbabilityCalibration.minimumSamples || 30}独立標本</small></div>

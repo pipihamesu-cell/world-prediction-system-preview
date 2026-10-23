@@ -3970,6 +3970,10 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div class="paper-entry-policy-grid">${(data.factorLedger.factors || []).map((factor) => `<div><span>${factor.label}</span><strong>一致 ${factor.aligned.samples} / 逆行 ${factor.conflict.samples}</strong><small>一致時 ${factor.aligned.averageNetMovePct == null ? "--" : `${Number(factor.aligned.averageNetMovePct) >= 0 ? "+" : ""}${Number(factor.aligned.averageNetMovePct).toFixed(4)}%`} / 逆行時 ${factor.conflict.averageNetMovePct == null ? "--" : `${Number(factor.conflict.averageNetMovePct) >= 0 ? "+" : ""}${Number(factor.conflict.averageNetMovePct).toFixed(4)}%`}</small></div>`).join("")}</div>
       <small>${data.factorLedger.note}</small>
     </div>` : ""}
+    ${shadow && data.factorWalkForwardGate ? `<div class="paper-regime-guard ${data.factorWalkForwardGate.active ? "stable" : "waiting"}">
+      <div><span>要因条件・三分割検証</span><strong>${data.factorWalkForwardGate.status}</strong></div>
+      <small>${data.factorWalkForwardGate.samples}独立標本 / ${data.factorWalkForwardGate.methodology || "40標本まで採用せず蓄積"}</small>
+    </div>` : ""}
     ${shadow && data.entryPolicyComparison ? `<div class="paper-entry-policies">
       <div class="paper-entry-policy-head"><span>エントリー条件対照試験</span><strong>${data.entryPolicyComparison.decision}</strong></div>
       <div class="paper-entry-policy-lock"><span>${data.entryPolicyComparison.promotionLock?.label || "統計ロック"}</span><small>${data.entryPolicyComparison.promotionLock?.rule || ""}</small></div>

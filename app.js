@@ -3884,6 +3884,8 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     ? `重要材料検証 ${riskPct}%`
     : tier === "counterfactual_release"
       ? `選択解除・1ロット試験 ${riskPct}%`
+      : tier === "exploration"
+        ? `能力向上・1ロット探索 ${riskPct}%`
       : tier === "trial"
         ? `低リスク試験 ${riskPct}%`
         : "通常検証";
@@ -4029,6 +4031,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     </div>
     ${snapshot ? `<div class="paper-entry-snapshot"><span>固定保存したエントリー情報</span><strong>${snapshot.modelLabel || snapshot.modelId || "--"} / ${snapshot.signalDirection === "up" || snapshot.direction === "up" ? "上" : "下"} / ${Math.round(Number(snapshot.signalProbability ?? snapshot.probability ?? 0) * 100)}%</strong><small>${validationTierLabel(snapshot.validationTier, snapshot.riskPerTradePct ?? 0.1)} ・ 局面 ${snapshot.regime?.label || snapshot.regime?.key || "未分類"} ・ ゲート ${snapshot.validationTier === "fundamental" || snapshot.validationTier === "counterfactual_release" ? snapshot.qualityGateReason : snapshot.qualityGateAccepted ? "通過" : `不合格: ${snapshot.qualityGateReason || "基準未達"}`} ・ ドリフト ${snapshot.conformalDrift?.label || snapshot.conformalDrift?.state || "なし"}</small></div>` : ""}
     ${!shadow && (data.confidenceAudits || [data.confidenceAudit]).filter(Boolean).map((audit) => `<div class="paper-regime-guard ${audit.officialEntryAllowed ? "stable" : "waiting"}"><div><span>${audit.assetId === "usdjpy" ? "USD/JPY" : "EUR/USD"}・確率実績監査</span><strong>${audit.label}</strong></div><small>${audit.samples}/${audit.minimumSamples}件 ・ 表示確率 ${audit.averageConfidence == null ? "--" : `${Math.round(audit.averageConfidence * 100)}%`} ・ 実勝率 ${audit.hitRate == null ? "--" : `${Math.round(audit.hitRate * 100)}%`} ・ Brier ${audit.brierScore == null ? "--" : Number(audit.brierScore).toFixed(3)} ・ 期待値 ${audit.expectancyJpy == null ? "--" : signedYen(audit.expectancyJpy)}</small></div>`).join("")}
+    ${!shadow && data.explorationPolicy ? `<div class="paper-regime-guard ${data.explorationPolicy.accepted ? "stable" : "waiting"}"><div><span>能力向上・探索運用</span><strong>${data.explorationPolicy.label}</strong></div><small>最大${data.explorationPolicy.maxLots}ロット / 口座リスク${data.explorationPolicy.riskPerTradePct}% / 確率${Math.round(data.explorationPolicy.probabilityFloor * 100)}%以上 / 負けも確率校正へ保存</small></div>` : ""}
     <div class="paper-condition-grid">
       <div><span>次の発注条件</span>${conditions.map((condition) => `<small class="${condition.met ? "met" : "unmet"}">${condition.met ? "✓" : "×"} ${condition.label}</small>`).join("") || "<small>判定待ち</small>"}</div>
       <div><span>発注を妨げている条件</span>${(data.blockers || []).map((item) => `<small class="unmet">${item}</small>`).join("") || "<small class=\"met\">なし</small>"}</div>

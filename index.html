@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=192" />
+    <link rel="stylesheet" href="./styles.css?v=216" />
   </head>
   <body>
     <main class="shell">
@@ -120,7 +120,7 @@
           <span>表示</span>
           <button type="button" data-design-mode="classic">旧版</button>
           <button type="button" data-design-mode="command" class="active">刷新版</button>
-          <button id="detail-mode-toggle" type="button" aria-pressed="false" title="補助パネルを表示">詳細表示</button>
+          <button id="detail-mode-toggle" type="button" aria-pressed="false" title="検証統制・候補モデル・練習機能を表示">詳細・研究を表示</button>
         </div>
 
         <nav class="globe-layers" aria-label="地球儀表示レイヤー">
@@ -196,7 +196,7 @@
           <div id="finance-monitor-overview" class="finance-monitor-overview"></div>
         </section>
 
-        <section class="android-access-wrap" aria-label="Android公開アクセス">
+        <section id="android-access-panel" class="android-access-wrap" aria-label="Android公開アクセス" tabindex="-1">
           <div class="android-access-head">
             <span>Android公開アクセス</span>
             <strong id="android-access-status">確認中</strong>
@@ -701,6 +701,6 @@
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="./mobile-native.js?v=197"></script>
-    <script src="./app.js?v=204"></script>
+    <script src="./app.js?v=216"></script>
   </body>
 </html>

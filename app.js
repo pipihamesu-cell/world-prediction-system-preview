@@ -453,12 +453,15 @@ localStorage.setItem(globeRestoreVersion, "done");
 localStorage.setItem("worldPredictionMapMode", globeMode);
 let designMode = localStorage.getItem("worldPredictionDesignMode") === "classic" ? "classic" : "command";
 let detailMode = localStorage.getItem("worldPredictionDetailMode") === "full" ? "full" : "compact";
-const secondaryPanelIds = [
-  "options-panel",
-  "ytt-demo-panel",
-  "conformal-panel",
-  "champion-challenger-panel",
-  "shadow-paper-trading-panel"
+const secondaryPanelSelectors = [
+  ".forecast-newsflash",
+  "#options-panel",
+  "#ytt-demo-panel",
+  "#conformal-panel",
+  "#champion-challenger-panel",
+  "#shadow-paper-trading-panel",
+  "#validation-control-panel",
+  "#ai-improvement-panel"
 ];
 
 function deriveTradeScenarioPlans(paperTrading, markets = latestSnapshot?.markets || []) {
@@ -1586,13 +1589,13 @@ function renderMap2d(events, centers, alerts) {
 function applyDetailMode({ rerender = true } = {}) {
   const full = detailMode === "full";
   document.body.classList.toggle("compact-operations", !full);
-  secondaryPanelIds.forEach((id) => {
-    const panel = document.getElementById(id);
+  secondaryPanelSelectors.forEach((selector) => {
+    const panel = document.querySelector(selector);
     if (panel) panel.hidden = !full;
   });
   if (detailModeToggleEl) {
-    detailModeToggleEl.textContent = full ? "詳細を閉じる" : "詳細表示";
-    detailModeToggleEl.title = full ? "補助パネルを閉じて軽量表示に戻す" : "保存済みの補助パネルを表示";
+    detailModeToggleEl.textContent = full ? "通常表示に戻す" : "詳細・研究を表示";
+    detailModeToggleEl.title = full ? "判断と運用を中心にした通常表示へ戻す" : "検証統制・候補モデル・練習機能を表示";
     detailModeToggleEl.classList.toggle("active", full);
     detailModeToggleEl.setAttribute("aria-pressed", String(full));
   }
@@ -1603,7 +1606,7 @@ function applyDetailMode({ rerender = true } = {}) {
     renderYttDemoTrading(latestSnapshot.yttDemoTrading);
     renderConformalCalibration(latestSnapshot.eurusdConformal);
     renderChampionChallenger(latestSnapshot.championChallenger);
-    renderPaperAccount(latestSnapshot.shadowPaperTrading, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
+    renderPaperAccount({ ...latestSnapshot.shadowPaperTrading, weekendReplay: latestSnapshot.weekendReplay }, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
   }
   requestAnimationFrame(rebalanceIntelligenceRail);
 }
@@ -1881,7 +1884,7 @@ function renderDesktopOperations(ops, access) {
   const databaseExpiry = storage.expiresAt ? new Date(storage.expiresAt).toLocaleDateString("ja-JP") : "";
   mobileAccessStatusEl.textContent = `${ops.status} / ${ops.readiness}点`;
   mobileAccessEl.innerHTML = `
-    <div class="system-assessment ${assessment.realMoneyReady ? "ready" : "restricted"}">
+    <div class="system-assessment ${assessment.productReady ? "ready" : "restricted"}">
       <div>
         <span>FX実運用 総合評価</span>
         <strong>${assessment.score ?? "--"}<small>/100</small></strong>
@@ -1889,9 +1892,10 @@ function renderDesktopOperations(ops, access) {
       <div>
         <b>評価 ${assessment.grade || "--"} / ${assessment.status || "判定中"}</b>
         <small>厳格評価 ${assessment.evaluationSamples || 0}/${assessment.minimumPromotionSamples || 120}件</small>
-        <small>${assessment.realMoneyReady ? "実資金検討条件を満たしています" : "実資金投入条件は未達です"}</small>
+        <small>${assessment.productStatus || "製品品質を検証中"} / 利益保証ではありません</small>
       </div>
       <div class="assessment-evidence">
+        <small>製品完成ゲート ${assessment.productReadiness ?? 0}%</small>
         <small>公式デモ ${assessment.paperTrades || 0}/${assessment.minimumPaperTrades || 30}回</small>
         <small>公式勝率 ${assessment.paperWinRate == null ? "--" : `${(Number(assessment.paperWinRate) * 100).toFixed(1)}%`} / 収益率 ${assessment.paperReturnPct == null ? "--" : `${Number(assessment.paperReturnPct).toFixed(3)}%`} / PF ${assessment.paperProfitFactor == null ? "--" : Number(assessment.paperProfitFactor).toFixed(2)}</small>
         <small>照合済み方向予測 ${assessment.verifiedDirectionalHitRate == null ? "--" : `${(Number(assessment.verifiedDirectionalHitRate) * 100).toFixed(1)}%`} / ${assessment.verifiedDirectionalSamples || 0}件</small>
@@ -2597,6 +2601,36 @@ function renderForecastNewsflash(items, eurusdMarket) {
   `;
 }
 
+const PAIR_DECISION_STATE_KEY = "worldPredictionPairDecisionStateV1";
+const PAIR_DECISION_CHANGE_ALERT_MS = 30 * 60 * 1000;
+
+function readPairDecisionState() {
+  try {
+    return JSON.parse(localStorage.getItem(PAIR_DECISION_STATE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function updatePairDecisionValidityCountdowns() {
+  document.querySelectorAll("[data-decision-valid-until]").forEach((element) => {
+    const validUntil = Number(element.dataset.decisionValidUntil || 0);
+    const remainingMs = validUntil - Date.now();
+    const card = element.closest(".pair-decision-card");
+    const time = Number.isFinite(validUntil) && validUntil > 0
+      ? new Date(validUntil).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+      : "--:--";
+    if (remainingMs <= 0) {
+      element.textContent = `期限切れ ${time}・最新分析を更新してください`;
+      card?.classList.add("expired");
+      return;
+    }
+    const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+    element.textContent = `有効 ${time}まで・残り${remainingMinutes}分`;
+    card?.classList.remove("expired");
+  });
+}
+
 function renderPairDecisionDeck(snapshot) {
   if (!pairDecisionDeckEl || !pairDecisionCardsEl) return;
   const markets = snapshot?.markets || [];
@@ -2608,6 +2642,9 @@ function renderPairDecisionDeck(snapshot) {
   const eurusdFrames = snapshot?.eurusdTimeframes || [];
   const usdjpyFrames = yenCommand.timeframes || [];
   const eurusdSimulation = snapshot?.probabilitySimulation || {};
+  const analyzedAt = new Date(snapshot?.generatedAt || Date.now()).getTime();
+  const horizonMinutes = Math.max(1, Number(snapshot?.horizonMinutes || 10));
+  const validUntil = analyzedAt + horizonMinutes * 60_000;
   const findFrame = (items, key) => items.find((item) => item.key === key);
   const direction = (value) => value === "up" ? "buy" : value === "down" ? "sell" : "waiting";
   const action = (value) => value === "up" ? "買い" : value === "down" ? "売り" : "見送り";
@@ -2618,6 +2655,16 @@ function renderPairDecisionDeck(snapshot) {
   const usdjpyDirection = usdjpy.direction || "flat";
   const eurusdConfidence = Number(eurusdSimulation.probabilities?.calibratedMain ?? eurusdMarket?.forecast?.confidence ?? 0.5) * 100;
   const usdjpyConfidence = Number(usdjpy.confidence || usdjpyMarket?.forecast?.confidence || 0) * 100;
+  const eurusdReason = [eurusdCommand.action, ...(eurusdCommand.drivers || []).slice(0, 2)]
+    .filter(Boolean)
+    .join(" / ") || "価格・ニュース・金利の合議を確認中です。";
+  const yenDriverReason = (yenCommand.drivers || []).slice(0, 2)
+    .map((item) => `${item.label}: ${item.direction}`)
+    .join(" / ");
+  const yenConsensus = yenCommand.timeframeConsensus;
+  const usdjpyReason = yenConsensus
+    ? `${yenConsensus.directionLabel || action(yenConsensus.direction)} / ${yenConsensus.blockers?.[0] || yenConsensus.method || yenDriverReason || "時間足合議を確認中"}`
+    : yenDriverReason || "複数価格と時間足方向を確認中です。";
   const cards = [
     {
       id: "eurusd",
@@ -2630,6 +2677,7 @@ function renderPairDecisionDeck(snapshot) {
       fresh: eurusdMarket?.quote?.freshnessSeconds,
       h4: findFrame(eurusdFrames, "h4"),
       d1: findFrame(eurusdFrames, "d1"),
+      reason: eurusdReason,
       digits: 5
     },
     {
@@ -2643,21 +2691,47 @@ function renderPairDecisionDeck(snapshot) {
       fresh: usdjpy.freshnessSeconds ?? usdjpyMarket?.quote?.freshnessSeconds,
       h4: findFrame(usdjpyFrames, "h4"),
       d1: findFrame(usdjpyFrames, "d1"),
+      reason: usdjpyReason,
       digits: 3
     }
   ];
+  const previousStates = readPairDecisionState();
+  const nextStates = { ...previousStates };
+  cards.forEach((card) => {
+    const previous = previousStates[card.id];
+    if (!previous) {
+      nextStates[card.id] = { direction: card.direction, analyzedAt, changedAt: 0, previousDirection: null };
+      return;
+    }
+    if (analyzedAt > Number(previous.analyzedAt || 0)) {
+      nextStates[card.id] = previous.direction !== card.direction
+        ? { direction: card.direction, analyzedAt, changedAt: Date.now(), previousDirection: previous.direction }
+        : { ...previous, direction: card.direction, analyzedAt };
+    }
+  });
+  try {
+    localStorage.setItem(PAIR_DECISION_STATE_KEY, JSON.stringify(nextStates));
+  } catch {
+    // Private browsing can reject local storage; the live decision still renders.
+  }
   pairDecisionDeckEl.className = "pair-decision-deck live";
   pairDecisionCardsEl.innerHTML = cards.map((card) => {
     const tone = direction(card.direction);
     const delta = Number(card.deltaPct || 0);
-    return `<a class="pair-decision-card ${tone}" href="#${card.id}-pivot-panel" aria-label="${card.label} ${action(card.direction)}">
+    const state = nextStates[card.id] || {};
+    const recentlyChanged = Boolean(state.previousDirection && state.previousDirection !== card.direction && Date.now() - Number(state.changedAt || 0) < PAIR_DECISION_CHANGE_ALERT_MS);
+    const changeLabel = recentlyChanged ? `${action(state.previousDirection)} → ${action(card.direction)}に変更` : "";
+    return `<a class="pair-decision-card ${tone}${recentlyChanged ? " changed" : ""}" href="#${card.id}-pivot-panel" aria-label="${card.label} ${action(card.direction)} ${changeLabel}">
+      ${recentlyChanged ? `<mark class="pair-decision-change-badge">判断変更 ${escapeMarkup(changeLabel)}</mark>` : ""}
       <div class="pair-decision-symbol"><span>${card.label}</span><small>現在予測</small></div>
       <div class="pair-decision-action"><b>${arrow(card.direction)}</b><strong>${action(card.direction)}</strong><em>${card.direction === "flat" ? "方向確率 --" : `短期方向 ${Math.round(card.confidence)}%`}</em></div>
       <div class="pair-decision-price"><span>現在値</span><strong>${price(card.current, card.digits)}</strong><small>10分 ${price(card.predicted, card.digits)} / ${delta >= 0 ? "+" : ""}${delta.toFixed(4)}%</small></div>
       <div class="pair-decision-horizons"><span>4時間 <b>${horizon(card.h4)}</b></span><span>日足 <b>${horizon(card.d1)}</b></span></div>
-      <div class="pair-decision-freshness"><i></i>${Number.isFinite(Number(card.fresh)) ? `価格 ${Math.round(Number(card.fresh))}秒前` : "価格時刻を確認中"}</div>
+      <div class="pair-decision-explanation"><span>判断理由</span><strong>${escapeMarkup(card.reason)}</strong></div>
+      <div class="pair-decision-freshness"><i></i><span>${Number.isFinite(Number(card.fresh)) ? `価格 ${Math.round(Number(card.fresh))}秒前` : "価格時刻を確認中"}</span><b data-decision-valid-until="${validUntil}"></b></div>
     </a>`;
   }).join("");
+  updatePairDecisionValidityCountdowns();
   if (pairDecisionUpdatedEl) {
     pairDecisionUpdatedEl.textContent = `分析 ${new Date(snapshot?.generatedAt || Date.now()).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   }
@@ -3558,7 +3632,7 @@ async function refreshMapLiveFx() {
       renderEurusdTimeframes(latestSnapshot.eurusdTimeframes || [], latestSnapshot.eurusdTimeframeLearning, latestSnapshot.dailyForecastReference);
     }
     if (payload.paperTrading) {
-      renderPaperTrading(payload.paperTrading, latestSnapshot?.shadowPaperTrading, latestSnapshot?.paperTradingComparison);
+      renderPaperTrading(payload.paperTrading, latestSnapshot?.shadowPaperTrading, latestSnapshot?.paperTradingComparison, latestSnapshot?.weekendReplay);
       renderTradeOpportunityMonitor(payload.paperTrading, latestSnapshot?.probabilitySimulation, latestSnapshot?.yenCrossCommand, latestSnapshot?.threeWayGate);
       renderPivotTradeOverlays(payload.paperTrading, latestSnapshot?.markets || liveMarkets);
       if (latestSnapshot) latestSnapshot.paperTrading = payload.paperTrading;
@@ -3880,11 +3954,14 @@ function showOpenedNotificationDetail() {
   const notice = params.get("notice");
   if (!notice) return;
   const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-  const title = params.get("noticeTitle") || "通知の詳細";
-  const body = params.get("noticeBody") || "該当する監視画面を表示しています。";
+  const registrationTest = notice === "registration-test";
+  const title = params.get("noticeTitle") || (registrationTest ? "通知登録テスト" : "通知の詳細");
+  const body = params.get("noticeBody") || (registrationTest
+    ? "Androidの通知登録とテスト送信結果を確認してください。"
+    : "該当する監視画面を表示しています。");
   const at = params.get("noticeAt");
   const panel = document.createElement("aside");
-  panel.className = `opened-notification ${notice === "paper-close" || notice === "market-alert" ? "important" : ""}`;
+  panel.className = `opened-notification ${registrationTest ? "compact" : ""} ${notice === "paper-close" || notice === "market-alert" ? "important" : ""}`;
   panel.setAttribute("role", "status");
   panel.innerHTML = `
     <div>
@@ -3896,18 +3973,26 @@ function showOpenedNotificationDetail() {
   `;
   document.body.append(panel);
   panel.querySelector("button")?.addEventListener("click", () => panel.remove());
+  if (registrationTest) setTimeout(() => panel.remove(), 8000);
   if (params.get("siren") === "1") {
     soundEnabled = true;
     localStorage.setItem("worldPredictionSound", "on");
     soundToggleEl.textContent = "音響 ON";
     playAlertTone("critical", { force: true });
   }
-  requestAnimationFrame(() => {
-    const target = location.hash ? document.querySelector(location.hash) : null;
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const revealNoticeTarget = () => {
+    const requestedTarget = location.hash ? document.querySelector(location.hash) : null;
+    const target = requestedTarget || (registrationTest ? document.getElementById("android-access-panel") : null);
+    target?.scrollIntoView({ behavior: "auto", block: "start" });
+    target?.focus({ preventScroll: true });
     target?.classList.add("notification-target");
     setTimeout(() => target?.classList.remove("notification-target"), 6000);
-  });
+  };
+  requestAnimationFrame(revealNoticeTarget);
+  if (registrationTest) {
+    setTimeout(revealNoticeTarget, 500);
+    setTimeout(revealNoticeTarget, 1800);
+  }
 }
 
 function updateNotificationUi() {
@@ -3994,6 +4079,19 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>根拠充足率</span><strong>${Math.round(Number(data.tradeProbabilityCalibration.evidenceWeight || 0) * 100)}%</strong><small>4時間結果だけで校正</small></div>
       <div><span>校正判断</span><strong>${data.tradeProbabilityCalibration.ready ? "実績校正" : "中立へ収縮"}</strong><small>${data.tradeProbabilityCalibration.label}</small></div>
     </div>` : ""}
+    ${!shadow && data.regimeDecisionValidation?.validatedProfitabilityGate ? (() => { const gate = data.regimeDecisionValidation.validatedProfitabilityGate; return `<div class="paper-regime-guard profitability-validation ${gate.promotionAllowed ? "stable" : "waiting"}">
+      <div><span>検証済み収益性・統合ゲート</span><strong>${gate.status}</strong></div>
+      <small>${gate.independentSamples}/${gate.minimumSamples}独立標本 / ${gate.methodology}</small>
+      <div class="paper-regime-policy-grid">
+        ${Object.entries(gate.stages || {}).map(([key, row]) => `<div><span>${key === "development" ? "開発50%" : key === "validation" ? "検証25%" : "最終未使用25%"}</span><strong>${row.samples}件</strong><small>期待値 ${row.expectancyPct == null ? "--" : `${Number(row.expectancyPct) >= 0 ? "+" : ""}${Number(row.expectancyPct).toFixed(4)}%`}</small></div>`).join("")}
+        <div><span>コスト1.5倍</span><strong>${gate.costStress.samples}件</strong><small>期待値 ${gate.costStress.expectancyPct == null ? "--" : `${Number(gate.costStress.expectancyPct) >= 0 ? "+" : ""}${Number(gate.costStress.expectancyPct).toFixed(4)}%`}</small></div>
+        <div><span>確率自己採点</span><strong>Brier ${gate.overall.brierScore ?? "--"}</strong><small>確率乖離 ${gate.overall.calibrationGap == null ? "--" : `${(Number(gate.overall.calibrationGap) * 100).toFixed(1)}pt`}</small></div>
+      </div>
+      <div class="paper-regime-policy-grid">
+        ${Object.entries(gate.sessionWalkForward || {}).map(([session, row]) => `<div><span>${session === "asia" ? "東京時間" : session === "london" ? "ロンドン時間" : session === "newYork" ? "NY時間" : session === "overlap" ? "欧米重複" : session === "rollover" ? "ロールオーバー" : session}</span><strong>${row.eligible ? row.passed ? "再現確認" : "再現せず" : "標本蓄積中"}</strong><small>${row.overall.samples}件 / 検証 ${row.validation.expectancyPct == null ? "--" : `${Number(row.validation.expectancyPct) >= 0 ? "+" : ""}${Number(row.validation.expectancyPct).toFixed(4)}%`} / 最終 ${row.untouched.expectancyPct == null ? "--" : `${Number(row.untouched.expectancyPct) >= 0 ? "+" : ""}${Number(row.untouched.expectancyPct).toFixed(4)}%`}</small></div>`).join("")}
+      </div>
+      <small>${gate.reasons?.length ? gate.reasons.join(" / ") : "全条件を通過"}</small>
+    </div>`; })() : ""}
     ${!shadow && data.exitAudit ? `<div class="paper-exit-strategy">
       <div><span>実際の取引スタイル</span><strong>${data.exitAudit.style}</strong><small>${data.exitAudit.decisionStructure} / 最大4時間</small></div>
       <div><span>実保有時間</span><strong>${durationLabel(data.exitAudit.averageHoldingMinutes)} 平均</strong><small>中央値 ${durationLabel(data.exitAudit.medianHoldingMinutes)} / 最短 ${durationLabel(data.exitAudit.shortestHoldingMinutes)} / 最長 ${durationLabel(data.exitAudit.longestHoldingMinutes)}</small></div>
@@ -4038,6 +4136,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     ${shadow && data.regimeGuard ? `<div class="paper-regime-guard ${data.regimeGuard.waiting ? "waiting" : "stable"}"><div><span>レジーム転換監視</span><strong>${data.regimeGuard.status}</strong></div><small>${data.regimeGuard.waiting ? `動的待機: ${data.regimeGuard.requirementReason || "局面リスク"} / 確定15分足${data.regimeGuard.requiredConfirmations}本` : "通常2本・高ボラ3本・重要指標または極端変動4本で自動調整"}</small></div>` : ""}
     ${shadow && data.regimeGuardVerification ? `<div class="paper-regime-verification"><div class="paper-regime-policy-head"><span>転換待機の反実仮想検証</span><strong>${data.regimeGuardVerification.recommendation}</strong></div><div class="paper-entry-policy-lock"><span>95%統計ロック</span><small>${data.regimeGuardVerification.statisticalLock}</small></div><div class="paper-regime-policy-grid">${(data.regimeGuardVerification.rows || []).map((row) => `<div class="${row.status === "verified" ? "promotable" : "learning"}"><span>${row.confirmations}本待機</span><strong>${row.samples}/${data.regimeGuardVerification.minimumSamples}件</strong><small>回避 ${yen(row.avoidedLossJpy)} / 逸失 ${yen(row.missedProfitJpy)}</small><small>平均効果 ${row.meanBenefitJpy == null ? "--" : signedYen(row.meanBenefitJpy)}</small><small>95%CI ${row.interval?.lowerJpy == null ? "--" : signedYen(row.interval.lowerJpy)} ～ ${row.interval?.upperJpy == null ? "--" : signedYen(row.interval.upperJpy)}</small><small>${row.decision}</small></div>`).join("")}<div><span>照合待ち</span><strong>${data.regimeGuardVerification.pending}件</strong><small>標準元本 ${yen(data.regimeGuardVerification.referenceNotionalJpy)}</small><small>推定コスト控除後</small></div></div></div>` : ""}
     ${shadow && data.historicalValidation?.performance ? `<div class="paper-historical-validation"><div class="paper-regime-policy-head"><span>実測15分足 過去再生検証</span><strong>${data.historicalValidation.status}</strong></div><div class="paper-entry-policy-lock"><span>未来情報遮断</span><small>${data.historicalValidation.leakageGuard}</small></div><div class="paper-historical-summary"><div><span>検証期間</span><strong>${data.historicalValidation.period?.from ? new Date(data.historicalValidation.period.from).toLocaleDateString("ja-JP") : "--"} ～ ${data.historicalValidation.period?.to ? new Date(data.historicalValidation.period.to).toLocaleDateString("ja-JP") : "--"}</strong><small>${data.historicalValidation.candleCount}本 / ${data.historicalValidation.source}</small></div><div><span>過去照合</span><strong>${data.historicalValidation.performance.samples}件</strong><small>利益取引率 ${data.historicalValidation.performance.winRate == null ? "--" : `${(data.historicalValidation.performance.winRate * 100).toFixed(1)}%`}</small></div><div><span>標準元本損益</span><strong class="${Number(data.historicalValidation.performance.netPnlJpy || 0) >= 0 ? "up" : "down"}">${signedYen(data.historicalValidation.performance.netPnlJpy)}</strong><small>期待値 ${data.historicalValidation.performance.expectancyJpy == null ? "--" : signedYen(data.historicalValidation.performance.expectancyJpy)} / PF ${data.historicalValidation.performance.profitFactor ?? "--"}</small></div><div><span>昇格ゲート</span><strong class="${data.historicalValidation.promotionGate?.eligible ? "up" : "down"}">${data.historicalValidation.promotionGate?.decision || "審査中"}</strong><small>${data.historicalValidation.promotionGate?.rule || "厳格審査"}</small></div></div><div class="paper-regime-policy-grid">${(data.historicalValidation.byRegime || []).map((row) => `<div><span>${row.label}</span><strong>${row.samples}件</strong><small>利益取引率 ${row.winRate == null ? "--" : `${(row.winRate * 100).toFixed(1)}%`} / 期待値 ${row.expectancyJpy == null ? "--" : signedYen(row.expectancyJpy)}</small><small>PF ${row.profitFactor ?? "--"}</small></div>`).join("")}<div><span>転換待機検証</span><strong>${data.historicalValidation.regimeGuardVerification?.samples || 0}件</strong><small>${data.historicalValidation.regimeGuardVerification?.recommendation || "蓄積中"}</small></div></div></div>` : ""}
+    ${shadow && data.weekendReplay ? `<div class="paper-historical-validation"><div class="paper-regime-policy-head"><span>休日・相場タイムマシン口座</span><strong>${data.weekendReplay.status || "準備中"}</strong></div><div class="paper-entry-policy-lock"><span>公式実績と完全分離</span><small>${data.weekendReplay.evidencePolicy || "過去再生は訓練専用で、公式デモ・前向き実績には加算しません"}</small></div><div class="paper-historical-summary"><div><span>再生進捗</span><strong>${data.weekendReplay.cursor || 0} / ${data.weekendReplay.totalAvailable || 0}件</strong><small>休日に時系列順で自動再生</small></div><div><span>休日デモ残高</span><strong>${yen(data.weekendReplay.balance || data.weekendReplay.initialBalance || 10_000_000)}</strong><small>初期資金 1,000万円</small></div><div><span>確定損益</span><strong class="${Number(data.weekendReplay.stats?.netPnlJpy || 0) >= 0 ? "up" : "down"}">${signedYen(data.weekendReplay.stats?.netPnlJpy || 0)}</strong><small>${data.weekendReplay.stats?.trades || 0}取引 / 勝率 ${data.weekendReplay.stats?.winRate == null ? "--" : `${Math.round(Number(data.weekendReplay.stats.winRate) * 100)}%`}</small></div><div><span>直近再生</span><strong>${data.weekendReplay.lastTrade ? `${data.weekendReplay.lastTrade.side === "long" ? "買い" : "売り"} ${signedYen(data.weekendReplay.lastTrade.netPnl)}` : "待機中"}</strong><small>${data.weekendReplay.lastTrade?.closedAt ? new Date(data.weekendReplay.lastTrade.closedAt).toLocaleString("ja-JP") : "過去チャートを準備しています"}</small></div><div><span>弱点監視</span><strong>${data.weekendReplay.stats?.weakestSegment ? `${data.weekendReplay.stats.weakestSegment.regime}・${data.weekendReplay.stats.weakestSegment.side === "long" ? "買い" : "売り"}` : "標本蓄積中"}</strong><small>${data.weekendReplay.stats?.weakestSegment ? `${data.weekendReplay.stats.weakestSegment.samples}件 / 期待値 ${signedYen(data.weekendReplay.stats.weakestSegment.expectancyJpy)}` : "同条件12件から判定"}</small></div></div></div>` : ""}
     ${shadow && data.parallelValidation ? `<div class="paper-parallel-validation"><div class="paper-regime-policy-head"><span>15分足・並列仮想判定</span><strong>${data.parallelValidation.samples}件照合 / ${data.parallelValidation.pending}件待ち / ${data.parallelValidation.invalid || 0}件時刻無効</strong></div><div class="paper-historical-summary"><div><span>全確定候補</span><strong>${data.parallelValidation.hitRate == null ? "蓄積中" : `${Math.round(data.parallelValidation.hitRate * 100)}%`}</strong><small>コスト後平均 ${data.parallelValidation.averageNetMovePct == null ? "--" : `${Number(data.parallelValidation.averageNetMovePct) >= 0 ? "+" : ""}${Number(data.parallelValidation.averageNetMovePct).toFixed(4)}%`}</small></div><div><span>A級候補</span><strong>${data.parallelValidation.aGrade.hitRate == null ? "蓄積中" : `${Math.round(data.parallelValidation.aGrade.hitRate * 100)}%`}</strong><small>${data.parallelValidation.aGrade.samples}件 / 確率70%以上・時間足一致60%以上</small></div></div><small>${data.parallelValidation.note}</small></div>` : ""}
     ${!shadow && data.fundamentalTradePerformance ? `<div class="paper-exit-strategy">
       <div><span>重要材料取引</span><strong>${data.fundamentalTradePerformance.status}</strong><small>${data.fundamentalTradePerformance.samples}/${data.fundamentalTradePerformance.minimumSamples}件</small></div>
@@ -4204,10 +4303,10 @@ function renderTradingAnalytics(official, eurusdFrames = [], yenCrossCommand = n
   tradingAnalyticsStatusEl.textContent = `${selectedProfitCalendarMonth.replace("-", "年")}月 / ${monthSummary.trades}取引 / ${yen(monthSummary.pnl)}`;
 }
 
-function renderPaperTrading(official, shadow, comparison) {
+function renderPaperTrading(official, shadow, comparison, weekendReplay = null) {
   renderPaperPositionBar(official, shadow);
   renderPaperAccount(official, paperTradingPanelEl, paperTradingStatusEl, paperTradingEl);
-  if (detailMode === "full") renderPaperAccount(shadow, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
+  if (detailMode === "full") renderPaperAccount({ ...shadow, weekendReplay }, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
   if (!paperTradingComparisonEl || !comparison) return;
   const gate = comparison.gateVerification || {};
   const directionCalibration = comparison.directionProbabilityCalibration || {};
@@ -5012,7 +5111,7 @@ async function loadSnapshot(forceFull = false) {
     if (detailMode === "full") renderConformalCalibration(snapshot.eurusdConformal);
     if (detailMode === "full") renderChampionChallenger(snapshot.championChallenger);
     renderValidationControl(snapshot.leakageAudit, snapshot.threeWayGate, snapshot.attributionLedger);
-    renderPaperTrading(snapshot.paperTrading, snapshot.shadowPaperTrading, snapshot.paperTradingComparison);
+    renderPaperTrading(snapshot.paperTrading, snapshot.shadowPaperTrading, snapshot.paperTradingComparison, snapshot.weekendReplay);
     renderTradingAnalytics(snapshot.paperTrading, snapshot.eurusdTimeframes, snapshot.yenCrossCommand);
     if (detailMode === "full") renderYttDemoTrading(snapshot.yttDemoTrading);
     if (!yttDemoTriggerEl?.value) prefillYttScenario();
@@ -5257,6 +5356,7 @@ detailModeToggleEl?.addEventListener("click", async () => {
 applyGlobeMode();
 applyDesignMode();
 applyDetailMode({ rerender: false });
+setInterval(updatePairDecisionValidityCountdowns, 30_000);
 mapAlertMarkersEl?.addEventListener("click", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));
 mapAlertMarkersEl?.addEventListener("mouseover", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));
 mapAlertMarkersEl?.addEventListener("focusin", (event) => openMapEventDetail(event.target.closest(".map-marker-pole")));

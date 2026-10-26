@@ -432,11 +432,17 @@ let mapAlertExpiryTimer = null;
 let eurusdPivotChart = null;
 let eurusdPivotSeries = null;
 let eurusdPivotResizeObserver = null;
-let selectedPivotTimeframe = localStorage.getItem("eurusdPivotTimeframe") || "h1";
+const pivotOneMinuteMigrationKey = "pivotDefaultOneMinuteV1";
+if (localStorage.getItem(pivotOneMinuteMigrationKey) !== "done") {
+  localStorage.setItem("eurusdPivotTimeframe", "m1");
+  localStorage.setItem("usdjpyPivotTimeframe", "m1");
+  localStorage.setItem(pivotOneMinuteMigrationKey, "done");
+}
+let selectedPivotTimeframe = localStorage.getItem("eurusdPivotTimeframe") || "m1";
 let selectedEurusdChartMode = localStorage.getItem("eurusdChartMode") === "spread" ? "spread" : "price";
 let latestEuroSovereignSpread = null;
 let euroSovereignSpreadFallbackRequested = false;
-let selectedUsdjpyPivotTimeframe = localStorage.getItem("usdjpyPivotTimeframe") || "h1";
+let selectedUsdjpyPivotTimeframe = localStorage.getItem("usdjpyPivotTimeframe") || "m1";
 const autoLineEnabled = {
   eurusd: localStorage.getItem("eurusdAutoLine") !== "off",
   usdjpy: localStorage.getItem("usdjpyAutoLine") !== "off"
@@ -627,7 +633,7 @@ function pivotBasisSummary(frame, decimals) {
 }
 
 function pivotTimeframeSeconds(timeframe) {
-  return ({ m15: 900, h1: 3600, h4: 14400, d1: 86400 })[timeframe] || 3600;
+  return ({ m1: 60, m15: 900, h1: 3600, h4: 14400, d1: 86400 })[timeframe] || 60;
 }
 
 function buildLivePivotCandle(assetId, frame, timeframe) {
@@ -2695,7 +2701,20 @@ function renderPairDecisionDeck(snapshot) {
       digits: 3
     }
   ];
-  const previousStates = readPairDecisionState();
+  const performance = snapshot?.pairDecisionPerformance || {};
+  const performanceLabel = (assetId, horizon) => {
+    const row = performance?.[assetId]?.[horizon];
+    if (!row?.samples) return `${horizon} 蓄積待ち`;
+    const qualifier = Number(row.samples) < 30 ? "参考" : "検証";
+    return `${horizon} ${Math.round(Number(row.hitRate || 0) * 100)}%・${row.samples}件 ${qualifier}`;
+  };
+  const serverDecisionStates = Object.fromEntries((snapshot?.pairDecisionStatus || []).map((row) => [row.assetId, {
+    direction: row.direction,
+    previousDirection: row.previousDirection,
+    changedAt: Date.parse(row.changedAt || "") || 0,
+    analyzedAt
+  }]));
+  const previousStates = { ...readPairDecisionState(), ...serverDecisionStates };
   const nextStates = { ...previousStates };
   cards.forEach((card) => {
     const previous = previousStates[card.id];
@@ -2721,6 +2740,9 @@ function renderPairDecisionDeck(snapshot) {
     const state = nextStates[card.id] || {};
     const recentlyChanged = Boolean(state.previousDirection && state.previousDirection !== card.direction && Date.now() - Number(state.changedAt || 0) < PAIR_DECISION_CHANGE_ALERT_MS);
     const changeLabel = recentlyChanged ? `${action(state.previousDirection)} → ${action(card.direction)}に変更` : "";
+    const persistentChangeLabel = state.previousDirection && state.previousDirection !== card.direction
+      ? `前回 ${action(state.previousDirection)} → 現在 ${action(card.direction)} / ${new Date(Number(state.changedAt || analyzedAt)).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}変更`
+      : "";
     return `<a class="pair-decision-card ${tone}${recentlyChanged ? " changed" : ""}" href="#${card.id}-pivot-panel" aria-label="${card.label} ${action(card.direction)} ${changeLabel}">
       ${recentlyChanged ? `<mark class="pair-decision-change-badge">判断変更 ${escapeMarkup(changeLabel)}</mark>` : ""}
       <div class="pair-decision-symbol"><span>${card.label}</span><small>現在予測</small></div>
@@ -2728,6 +2750,8 @@ function renderPairDecisionDeck(snapshot) {
       <div class="pair-decision-price"><span>現在値</span><strong>${price(card.current, card.digits)}</strong><small>10分 ${price(card.predicted, card.digits)} / ${delta >= 0 ? "+" : ""}${delta.toFixed(4)}%</small></div>
       <div class="pair-decision-horizons"><span>4時間 <b>${horizon(card.h4)}</b></span><span>日足 <b>${horizon(card.d1)}</b></span></div>
       <div class="pair-decision-explanation"><span>判断理由</span><strong>${escapeMarkup(card.reason)}</strong></div>
+      ${persistentChangeLabel ? `<div class="pair-decision-change-history">${escapeMarkup(persistentChangeLabel)}</div>` : ""}
+      <div class="pair-decision-score"><span>${escapeMarkup(performanceLabel(card.id, "15m"))}</span><span>${escapeMarkup(performanceLabel(card.id, "60m"))}</span></div>
       <div class="pair-decision-freshness"><i></i><span>${Number.isFinite(Number(card.fresh)) ? `価格 ${Math.round(Number(card.fresh))}秒前` : "価格時刻を確認中"}</span><b data-decision-valid-until="${validUntil}"></b></div>
     </a>`;
   }).join("");

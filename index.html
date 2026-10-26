@@ -7,7 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=216" />
+    <link rel="stylesheet" href="./styles.css?v=220" />
   </head>
   <body>
     <main class="shell">
@@ -426,8 +426,9 @@
             <strong id="eurusd-pivot-status">確定足を取得中</strong>
           </div>
           <div class="pivot-timeframe-tabs" role="tablist" aria-label="ピボット時間足">
+            <button type="button" data-pivot-timeframe="m1" role="tab" class="active" aria-selected="true">1分</button>
             <button type="button" data-pivot-timeframe="m15" role="tab">15分</button>
-            <button type="button" data-pivot-timeframe="h1" role="tab" class="active" aria-selected="true">1時間</button>
+            <button type="button" data-pivot-timeframe="h1" role="tab">1時間</button>
             <button type="button" data-pivot-timeframe="h4" role="tab">4時間</button>
             <button type="button" data-pivot-timeframe="d1" role="tab">日足</button>
             <button type="button" class="pivot-auto-line active" data-auto-line="eurusd" aria-pressed="true">AUTO LINE</button>
@@ -456,8 +457,9 @@
             <strong id="usdjpy-pivot-status">確定足を取得中</strong>
           </div>
           <div class="pivot-timeframe-tabs" role="tablist" aria-label="ドル円ピボット時間足">
+            <button type="button" data-usdjpy-pivot-timeframe="m1" role="tab" class="active" aria-selected="true">1分</button>
             <button type="button" data-usdjpy-pivot-timeframe="m15" role="tab">15分</button>
-            <button type="button" data-usdjpy-pivot-timeframe="h1" role="tab" class="active" aria-selected="true">1時間</button>
+            <button type="button" data-usdjpy-pivot-timeframe="h1" role="tab">1時間</button>
             <button type="button" data-usdjpy-pivot-timeframe="h4" role="tab">4時間</button>
             <button type="button" data-usdjpy-pivot-timeframe="d1" role="tab">日足</button>
             <button type="button" class="pivot-auto-line active" data-auto-line="usdjpy" aria-pressed="true">AUTO LINE</button>
@@ -701,6 +703,6 @@
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="./mobile-native.js?v=197"></script>
-    <script src="./app.js?v=216"></script>
+    <script src="./app.js?v=220"></script>
   </body>
 </html>

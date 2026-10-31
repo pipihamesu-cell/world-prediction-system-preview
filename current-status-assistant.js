@@ -1,3 +1,6 @@
+import { ECONOMIC_KNOWLEDGE_VERSION, economicKnowledgeEvidence, lookupEconomicKnowledge } from "./economic-knowledge.js?v=4";
+import { buildEurusdDecision } from "./eurusd-decision.js?v=1";
+
 const percent = (value, digits = 1) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(digits)}%` : "--";
 const price = (market) => Number.isFinite(Number(market?.quote?.value)) ? Number(market.quote.value).toFixed(market.decimals ?? 5) : "--";
 
@@ -18,7 +21,7 @@ function marketFacts(market) {
   const direction = Number(forecast.deltaPct) > 0 ? "上方向" : Number(forecast.deltaPct) < 0 ? "下方向" : "横ばい";
   return [
     `${market.label} 現在値 ${price(market)}（${Math.round(market.quote?.freshnessSeconds ?? 0)}秒前）`,
-    `短期予測 ${direction} ${percent(Math.abs(forecast.deltaPct || 0), 3)} / 信頼度 ${percent((forecast.confidence || 0) * 100, 0)}`,
+    `参考: 個別モデル ${direction} ${percent(Math.abs(forecast.deltaPct || 0), 3)}（最終判断・実測勝率ではありません）`,
     `価格照合 ${market.quote?.consensusVerified ? "成立" : "未成立"} / ${market.quote?.sourceCount || 0}系統`
   ];
 }
@@ -26,6 +29,18 @@ function marketFacts(market) {
 export function answerCurrentStatus(question, snapshot, now = new Date()) {
   const cleanQuestion = String(question || "").trim().slice(0, 300);
   if (!cleanQuestion) throw new Error("質問を入力してください。");
+  const knowledge = lookupEconomicKnowledge(cleanQuestion);
+  if (knowledge) {
+    const evidence = economicKnowledgeEvidence(knowledge, snapshot, cleanQuestion);
+    return {
+      question: cleanQuestion, topic: "economic-knowledge", headline: knowledge.title,
+      answer: knowledge.summary,
+      facts: [knowledge.caveat, knowledge.checks, evidence || "この要因の個別照合成績は取得できていません。"],
+      sources: knowledge.sources, knowledgeVersion: ECONOMIC_KNOWLEDGE_VERSION,
+      caution: "一般的な仕組みの説明です。現在のニュース・指標の結果や売買の推奨ではありません。",
+      generatedAt: now.toISOString(), snapshotAt: snapshot?.generatedAt || null
+    };
+  }
   if (!snapshot) throw new Error("最新データを準備中です。少し待ってから再度お試しください。");
   const topic = detectTopic(cleanQuestion);
   const markets = Array.isArray(snapshot.markets) ? snapshot.markets : Object.values(snapshot.markets || {});
@@ -43,15 +58,16 @@ export function answerCurrentStatus(question, snapshot, now = new Date()) {
   let facts = [...marketFacts(eurusd), ...marketFacts(usdjpy)];
 
   if (topic === "eurusd") {
-    headline = eurusdPlan ? `EUR/USDは${eurusdPlan.conclusion.action}` : `EUR/USDは${command.stance || "判定中"}`;
-    answer = eurusdPlan?.conclusion.text || command.action || "短期・長期の方向を分析しています。";
+    const decision = snapshot.probabilitySimulation?.finalDecision || buildEurusdDecision(snapshot.probabilitySimulation);
+    headline = `EUR/USD 予測品質: ${decision.qualityDecision}`;
+    answer = `予測方向: ${decision.directionLabel}。${decision.reason}。${decision.note}`;
     facts = eurusdPlan ? [
       ...marketFacts(eurusd),
       `時間足 ${(eurusdPlan.multiTimeframe || []).map((row) => `${row.label}:${row.directionLabel}`).join(" / ")}`,
       `支持 ${eurusdPlan.importantPrices?.support ?? "--"} / 分岐 ${eurusdPlan.importantPrices?.decisionPoint ?? "--"} / 抵抗 ${eurusdPlan.importantPrices?.resistance ?? "--"}`,
       `買い材料 ${(eurusdPlan.fundamentals?.buyFactors || []).join("、") || "なし"}`,
       `売り材料 ${(eurusdPlan.fundamentals?.sellFactors || []).join("、") || "なし"}`,
-      `見送り理由 ${(eurusdPlan.conclusion?.blockers || []).join("、") || "なし"}`
+      `予測品質の理由 ${decision.reason}`
     ] : [...marketFacts(eurusd), `予測レンジ ${command.range?.low ?? "--"} ～ ${command.range?.high ?? "--"} / 総合信頼 ${command.confidence?.score ?? "--"}点`, `主な根拠 ${(command.drivers || []).join("、") || "集計中"}`];
   } else if (topic === "usdjpy") {
     const yen = snapshot.yenCrossCommand || {};
@@ -69,12 +85,12 @@ export function answerCurrentStatus(question, snapshot, now = new Date()) {
     const positionPrice = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(positionDigits) : "--";
     const requestedPlan = /ドル円|usd.?jpy/.test(cleanQuestion.toLowerCase()) ? usdjpyPlan : eurusdPlan;
     headline = position ? `${position.pairLabel}の${position.side === "long" ? "買い" : "売り"}を仮想保有中` : requestedPlan ? `${requestedPlan.pairLabel}は${requestedPlan.conclusion.action}` : "公式仮想口座は次の機会を監視中";
-    answer = position ? "入口条件を固定保存し、損切り・利確・最大保有時間を最新価格で自動判定しています。" : requestedPlan?.conclusion.text || paper.actionDetail || "品質ゲート通過まで待機します。";
+    answer = position ? `この取引は${position.tradeStyleLabel || (position.tradeStyle === "swing" ? "スイング" : "スキャルピング")}です。入口条件を固定保存し、損切り・利確・反対シグナルを最新価格で自動判定しています。` : requestedPlan?.conclusion.text || paper.actionDetail || "品質ゲート通過まで待機します。";
     const candidate = requestedPlan?.primaryScenario?.candidate || requestedPlan?.primaryScenario;
     facts = [
       `総資産 ${Math.round(paper.equity || paper.cashBalance || 0).toLocaleString("ja-JP")}円 / 収益率 ${percent(paper.totalReturnPct, 3)}`,
       position ? `約定 ${positionPrice(position.entryPrice)} → 現在 ${positionPrice(position.currentPrice)} / 含み損益 ${Math.round(position.unrealizedPnl || 0).toLocaleString("ja-JP")}円` : "未決済ポジションなし",
-      position ? `損切り ${positionPrice(position.stopPrice)} / 利確 ${positionPrice(position.targetPrice)} / 最大保有 ${position.maxHoldingMinutes}分` : `条件案 ${candidate?.side || "WAIT"} / ENTRY ${candidate?.entry ?? "--"} / SL ${candidate?.stop ?? "--"} / TP ${candidate?.target ?? "--"} / RR ${candidate?.riskReward ?? "--"}`,
+      position ? `損切り ${positionPrice(position.stopPrice)} / 利確 ${positionPrice(position.targetPrice)} / ${position.intendedHorizon || "固定時間決済なし"}` : `条件案 ${candidate?.side || "WAIT"} / ENTRY ${candidate?.entry ?? "--"} / SL ${candidate?.stop ?? "--"} / TP ${candidate?.target ?? "--"} / RR ${candidate?.riskReward ?? "--"}`,
       position ? "" : `SL根拠 ${candidate?.stopReason || "構造未確定"}`,
       position ? "" : `注文取消 ${(candidate?.cancellationConditions || []).join("、") || "条件未設定"}`
     ];
@@ -95,5 +111,5 @@ export function answerCurrentStatus(question, snapshot, now = new Date()) {
     headline = `${command.stance || "市場監視中"} / 仮想口座${paper.position ? "ポジションあり" : "待機中"}`;
     facts.push(`総合評価 ${snapshot.desktopOperations?.assessment?.score ?? "--"}/100`);
   }
-  return { question: cleanQuestion, topic, headline, answer, facts: facts.filter(Boolean).slice(0, 7), caution: "予測は不確実であり、実資金の売買判断ではなく検証材料として扱ってください。", generatedAt: now.toISOString(), snapshotAt: snapshot.generatedAt || null };
+  return { question: cleanQuestion, topic, headline, answer, facts: facts.filter(Boolean).slice(0, 7), caution: "予測は不確実です。このシステムは学習・仮想検証専用です。", generatedAt: now.toISOString(), snapshotAt: snapshot.generatedAt || null };
 }

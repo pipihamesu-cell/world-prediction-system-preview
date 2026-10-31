@@ -7,17 +7,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>&#19990;&#30028;&#20104;&#28204;&#12471;&#12473;&#12486;&#12512;</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=220" />
+    <link rel="stylesheet" href="./styles.css?v=230" />
   </head>
   <body>
     <main class="shell">
       <section id="pair-decision-deck" class="pair-decision-deck syncing" aria-label="EUR/USD・USD/JPY 現在予測" aria-live="polite">
         <div class="pair-decision-heading">
           <span>AI CURRENT BIAS</span>
-          <strong>現在の売買判断</strong>
+          <strong>現在の予測方向</strong>
           <small id="pair-decision-updated">最新分析を同期中</small>
           <button id="refresh" class="top-manual-refresh" type="button" title="価格・チャート・予測を今すぐ更新" aria-label="価格・チャート・予測を今すぐ更新"><b aria-hidden="true">↻</b><em>今すぐ更新</em></button>
         </div>
+        <div class="display-simplify-control"><button id="display-simplify-toggle" type="button" aria-pressed="true">元の表示に戻す</button></div>
         <div id="pair-decision-cards" class="pair-decision-cards">
           <a class="pair-decision-card waiting" href="#eurusd-pivot-panel"><span>EUR/USD</span><strong>判定中</strong><small>予測を同期しています</small></a>
           <a class="pair-decision-card waiting" href="#usdjpy-pivot-panel"><span>USD/JPY</span><strong>判定中</strong><small>予測を同期しています</small></a>
@@ -62,9 +63,15 @@
       <section id="full-width-chart-stack" class="full-width-chart-stack" aria-label="EUR/USD・USD/JPY 全幅チャート"></section>
       <section id="full-width-gate-stack" class="full-width-gate-stack" aria-label="仮想運用・品質ゲート検証">
         <div class="unified-gate-head">
-          <div><span>仮想運用・品質ゲート検証</span><small>採用済み条件と検証候補を同じ場所で比較。資金台帳は検証の公平性を守るため分離します</small></div>
+          <div><span>仮想取引</span><small>通常口座と検証用口座の成績・残高は別々に保存</small></div>
           <strong>すべて仮想取引</strong>
         </div>
+        <nav class="paper-account-tabs" aria-label="仮想取引の表示切り替え">
+          <button type="button" data-paper-view="official" aria-controls="paper-trading-panel" aria-pressed="true">通常口座</button>
+          <button type="button" data-paper-view="shadow" aria-controls="shadow-paper-trading-panel" aria-pressed="false">検証用口座</button>
+          <button type="button" data-paper-view="practice" aria-controls="ytt-demo-panel" aria-pressed="false">手動練習</button>
+          <button type="button" data-paper-view="comparison" aria-controls="gate-verification-panel" aria-pressed="false">比較</button>
+        </nav>
       </section>
       <div class="left-rail">
       <aside class="briefing-panel briefing-dock" aria-label="AIブリーフィング">
@@ -252,6 +259,10 @@
             <strong id="health-status">確認中</strong>
           </div>
           <div id="data-health" class="data-health"></div>
+          <div id="delivery-bandwidth" class="delivery-bandwidth" aria-label="画面配信データ量">
+            <strong>画面配信データ量</strong>
+            <span>集計中</span>
+          </div>
         </section>
 
         <section class="shock-log-wrap" aria-label="急変理由テーブル">
@@ -354,11 +365,15 @@
             <div><span>AI現状質問</span><small>最新の価格・予測・ニュース・仮想取引から回答</small></div>
             <strong id="ai-question-status">質問できます</strong>
           </div>
+          <div class="economic-learning-progress"><strong>経済学習の進捗</strong><span id="economic-learning-progress">基礎資料を確認中 / 能力は未判定</span></div>
           <div class="ai-question-suggestions" aria-label="質問例">
             <button type="button" data-ai-question="今のEUR/USDの方向と根拠は？">EUR/USD</button>
             <button type="button" data-ai-question="仮想取引の状況は？">仮想取引</button>
             <button type="button" data-ai-question="予測精度と弱点を教えて">予測精度</button>
             <button type="button" data-ai-question="重要ニュースは何？">重要ニュース</button>
+            <button type="button" data-ai-question="フランスとドイツの国債金利差はユーロにどう影響する？">仏独金利差</button>
+            <button type="button" data-ai-question="金利据え置きでもなぜ為替が動く？">金利と織り込み</button>
+            <button type="button" data-ai-question="原油高は為替にどう影響する？">原油と為替</button>
           </div>
           <form id="ai-question-form" class="ai-question-form">
             <label for="ai-question-input">現在の状況について質問</label>
@@ -495,7 +510,7 @@
             <div><h3>注文・保有</h3><div id="ytt-demo-orders" class="ytt-demo-list"></div></div>
             <div><h3>決済履歴</h3><div id="ytt-demo-trades" class="ytt-demo-list"></div></div>
           </div>
-          <p class="ytt-demo-note">公式AI仮想口座とは別集計です。動画の手法を検証する練習機能で、実資金には接続しません。</p>
+          <p class="ytt-demo-note">公式AI仮想口座とは別集計です。動画の手法を検証する仮想練習機能です。</p>
         </section>
 
         <section id="swing-compass-panel" class="swing-compass-wrap flat" aria-label="EUR/USDスイング方向コンパス">
@@ -703,6 +718,7 @@
     <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="./mobile-native.js?v=197"></script>
-    <script src="./app.js?v=220"></script>
+    <script src="./refresh-utils.js"></script>
+    <script src="./app.js?v=260"></script>
   </body>
 </html>

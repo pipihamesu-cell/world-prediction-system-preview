@@ -1,18 +1,21 @@
-const CACHE_NAME = "world-prediction-system-v220";
+const CACHE_NAME = "world-prediction-system-v266";
 const scopedUrl = (path = "") => new URL(path, self.registration.scope).pathname;
 const APP_SHELL = [
   "",
   "index.html",
   "styles.css",
   "app.js",
+  "refresh-utils.js",
   "mobile-native.js",
   "current-status-assistant.js",
+  "eurusd-decision.js",
+  "economic-knowledge.js",
   "manifest.webmanifest",
   "icon-192.png",
   "icon-512.png",
   "icon.svg"
 ].map(scopedUrl);
-const NETWORK_FIRST = new Set(["", "index.html", "app.js", "styles.css"].map(scopedUrl));
+const NETWORK_FIRST = new Set(["", "index.html", "app.js", "styles.css", "refresh-utils.js"].map(scopedUrl));
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

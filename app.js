@@ -2,6 +2,7 @@
 const FEATURE_FLAGS = Object.freeze({ globe3d: true });
 const NATIVE_APP_MODE = Boolean(globalThis.WpsNative?.isNative);
 const STATIC_PREVIEW_MODE = location.hostname.endsWith("github.io") || NATIVE_APP_MODE;
+const { actualAgeSeconds, mergeLiveMarkets, mergeRevaluedMarkets, fetchJson, chartTickJst, chartTimeJst } = globalThis.WpsRefreshUtils;
 const signedYen = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
 const escapeMarkup = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const globeEl = document.getElementById("globe");
@@ -109,6 +110,7 @@ const currencyStrengthStatusEl = document.getElementById("currency-strength-stat
 const currencyStrengthEl = document.getElementById("currency-strength");
 const currencyStrengthChartEl = document.getElementById("currency-strength-chart");
 const dataHealthEl = document.getElementById("data-health");
+const deliveryBandwidthEl = document.getElementById("delivery-bandwidth");
 const healthStatusEl = document.getElementById("health-status");
 const eurusdCommandPanelEl = document.getElementById("eurusd-command-panel");
 const eurusdCommandStatusEl = document.getElementById("eurusd-command-status");
@@ -194,6 +196,7 @@ const designModeButtons = [...document.querySelectorAll("[data-design-mode]")];
 const detailModeToggleEl = document.getElementById("detail-mode-toggle");
 const flowCountEl = document.getElementById("flow-count");
 const flowExplanationEl = document.getElementById("flow-explanation");
+const displaySimplifyToggleEl = document.getElementById("display-simplify-toggle");
 const marketTapeEl = document.getElementById("market-tape");
 const forecastNewsflashTrackEl = document.getElementById("forecast-newsflash-track");
 const pairDecisionDeckEl = document.getElementById("pair-decision-deck");
@@ -239,11 +242,66 @@ function initFullWidthCharts() {
   if (usdjpyPanel) fullWidthChartStackEl.appendChild(usdjpyPanel);
 }
 
+function applySimplifiedDisplay(enabled, { persist = true } = {}) {
+  document.body.classList.toggle("simplified-display", enabled);
+  if (displaySimplifyToggleEl) {
+    displaySimplifyToggleEl.textContent = enabled ? "元の表示に戻す" : "表示をすっきりする";
+    displaySimplifyToggleEl.setAttribute("aria-pressed", String(enabled));
+  }
+  document.querySelectorAll("details[data-paper-research]").forEach((details) => { details.open = !enabled; });
+  if (persist) localStorage.setItem("worldPredictionSimplifiedDisplay", enabled ? "on" : "off");
+}
+
 function initFullWidthGateVerification() {
-  const panels = [paperTradingPanelEl, shadowPaperTradingPanelEl, document.querySelector(".gate-verification-wrap")].filter(Boolean);
+  const panels = [paperTradingPanelEl, shadowPaperTradingPanelEl, yttDemoPanelEl, document.querySelector(".gate-verification-wrap")].filter(Boolean);
   if (!panels.length || !fullWidthGateStackEl) return;
   panels.forEach((panel) => fullWidthGateStackEl.appendChild(panel));
   fullWidthGateStackEl.hidden = false;
+}
+
+let selectedPaperView = "official";
+function selectPaperView(view) {
+  const panels = {
+    official: paperTradingPanelEl,
+    shadow: shadowPaperTradingPanelEl,
+    practice: yttDemoPanelEl,
+    comparison: document.getElementById("gate-verification-panel")
+  };
+  selectedPaperView = panels[view] ? view : "official";
+  for (const [key, panel] of Object.entries(panels)) panel?.classList.toggle("paper-view-hidden", key !== selectedPaperView);
+  document.querySelectorAll("[data-paper-view]").forEach((button) => {
+    const active = button.dataset.paperView === selectedPaperView;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (selectedPaperView === "shadow" && latestSnapshot) {
+    renderPaperAccount({ ...latestSnapshot.shadowPaperTrading, weekendReplay: latestSnapshot.weekendReplay }, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
+  }
+  if (selectedPaperView === "practice" && latestSnapshot) renderYttDemoTrading(latestSnapshot.yttDemoTrading);
+}
+
+function initPaperViews() {
+  const viewFromTarget = (id) => ({
+    "paper-trading-panel": "official",
+    "shadow-paper-trading-panel": "shadow",
+    "ytt-demo-panel": "practice",
+    "paper-trading-comparison": "comparison",
+    "gate-verification-panel": "comparison"
+  })[id];
+  document.querySelectorAll("[data-paper-view]").forEach((button) => {
+    button.addEventListener("click", () => selectPaperView(button.dataset.paperView));
+  });
+  document.querySelectorAll("[data-mobile-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const view = viewFromTarget(button.dataset.mobileTarget);
+      if (view) selectPaperView(view);
+    }, true);
+  });
+  window.addEventListener("hashchange", () => {
+    const view = viewFromTarget(location.hash.slice(1));
+    if (view) selectPaperView(view);
+  });
+  selectPaperView(viewFromTarget(location.hash.slice(1)) || "official");
 }
 
 function initResponsiveIntelligenceRail() {
@@ -425,6 +483,9 @@ let snapshotTimer = null;
 let liveFxTimer = null;
 let latestEurusdPivotChart = null;
 let latestUsdjpyPivotChart = null;
+let lastPivotChartRefreshAt = 0;
+let lastPivotChartAttemptAt = 0;
+let pivotChartRefreshInFlight = null;
 const previousLiveFxValues = new Map();
 const latestLiveFxById = new Map();
 const livePivotCandles = new Map();
@@ -462,10 +523,8 @@ let detailMode = localStorage.getItem("worldPredictionDetailMode") === "full" ? 
 const secondaryPanelSelectors = [
   ".forecast-newsflash",
   "#options-panel",
-  "#ytt-demo-panel",
   "#conformal-panel",
   "#champion-challenger-panel",
-  "#shadow-paper-trading-panel",
   "#validation-control-panel",
   "#ai-improvement-panel"
 ];
@@ -562,8 +621,7 @@ function buildPivotAutoLines(candles = []) {
     if (rows[index].high === Math.max(...window.map((row) => row.high))) highs.push({ ...rows[index], price: rows[index].high });
     if (rows[index].low === Math.min(...window.map((row) => row.low))) lows.push({ ...rows[index], price: rows[index].low });
   }
-  const interval = Math.max(60, rows.at(-1).time - rows.at(-2).time);
-  const endTime = rows.at(-1).time + interval * 6;
+  const endTime = rows.at(-1).time;
   const priceRange = Math.max(0.000001, Math.max(...rows.map((row) => row.high)) - Math.min(...rows.map((row) => row.low)));
   const create = (points, type, color, title) => {
     const anchors = points.slice(-2);
@@ -665,9 +723,9 @@ function buildLivePivotCandle(assetId, frame, timeframe) {
 function appendLivePivotStatus(statusEl, live) {
   if (!statusEl || !live?.at) return;
   const base = statusEl.textContent.replace(/ \/ LIVE価格 .*$/, "");
-  const at = new Date(live.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const age = Math.max(0, Math.round(Number(live.freshnessSeconds ?? (Date.now() - Date.parse(live.at)) / 1000)));
-  statusEl.textContent = `${base} / LIVE価格 ${age <= 75 ? `${age}秒前` : `遅延 ${age}秒`} ${at}`;
+  const at = new Date(live.at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const age = Math.round(actualAgeSeconds(live.at, live.freshnessSeconds));
+  statusEl.textContent = `${base} / LIVE価格 ${Number.isFinite(age) ? age <= 75 ? `${age}秒前` : `遅延 ${age}秒` : "時刻不明"} ${at}`;
 }
 
 function refreshLivePivotCandles(rows = []) {
@@ -686,6 +744,43 @@ function refreshLivePivotCandles(rows = []) {
     else if (candle && !window.LightweightCharts) renderUsdjpyPivotChart(latestUsdjpyPivotChart, selectedUsdjpyPivotTimeframe);
     appendLivePivotStatus(usdjpyPivotStatusEl, latestLiveFxById.get("usdjpy"));
   }
+}
+
+async function refreshOneMinutePivotCharts(force = false) {
+  if (STATIC_PREVIEW_MODE) return;
+  if (pivotChartRefreshInFlight) return pivotChartRefreshInFlight;
+  if (!force && (Date.now() - lastPivotChartRefreshAt < 55_000 || Date.now() - lastPivotChartAttemptAt < 15_000)) return;
+  lastPivotChartAttemptAt = Date.now();
+  pivotChartRefreshInFlight = (async () => {
+    const { payload } = await fetchJson("/api/pivot-charts/m1", { cache: "no-cache" }, 20_000);
+    const eurusd = payload.charts?.eurusd;
+    const usdjpy = payload.charts?.usdjpy;
+    if (eurusd?.frame) {
+      latestEurusdPivotChart = {
+        ...(latestEurusdPivotChart || {}),
+        symbol: eurusd.symbol,
+        decimals: eurusd.decimals,
+        updatedAt: eurusd.updatedAt,
+        frames: { ...(latestEurusdPivotChart?.frames || {}), m1: eurusd.frame }
+      };
+      if (selectedPivotTimeframe === "m1" && selectedEurusdChartMode === "price") {
+        renderEurusdPivotChart(latestEurusdPivotChart, "m1");
+      }
+    }
+    if (usdjpy?.frame) {
+      latestUsdjpyPivotChart = {
+        ...(latestUsdjpyPivotChart || {}),
+        symbol: usdjpy.symbol,
+        decimals: usdjpy.decimals,
+        updatedAt: usdjpy.updatedAt,
+        frames: { ...(latestUsdjpyPivotChart?.frames || {}), m1: usdjpy.frame }
+      };
+      if (selectedUsdjpyPivotTimeframe === "m1") renderUsdjpyPivotChart(latestUsdjpyPivotChart, "m1");
+    }
+    lastPivotChartRefreshAt = Date.now();
+    refreshLivePivotCandles([...latestLiveFxById.values()]);
+  })().finally(() => { pivotChartRefreshInFlight = null; });
+  return pivotChartRefreshInFlight;
 }
 
 function renderPivotFallback(frame, timeframe, levelStyles, chartEl = eurusdPivotChartEl, symbol = "EUR/USD", decimals = 5, showAutoLines = true) {
@@ -744,14 +839,15 @@ function renderPivotFallback(frame, timeframe, levelStyles, chartEl = eurusdPivo
     const color = candle.close >= candle.open ? "#35d39a" : "#ff5f72";
     const top = y(Math.max(candle.open, candle.close));
     const bottom = y(Math.min(candle.open, candle.close));
-    return `<line x1="${x}" y1="${y(candle.high)}" x2="${x}" y2="${y(candle.low)}" stroke="${color}" stroke-width="1.4"/><rect x="${x - bodyWidth / 2}" y="${top}" width="${bodyWidth}" height="${Math.max(1.5, bottom - top)}" fill="${color}" rx="0.8"><title>${new Date(candle.date).toLocaleString("ja-JP")} 始 ${candle.open.toFixed(decimals)} 高 ${candle.high.toFixed(decimals)} 安 ${candle.low.toFixed(decimals)} 終 ${candle.close.toFixed(decimals)}</title></rect>`;
+    return `<line x1="${x}" y1="${y(candle.high)}" x2="${x}" y2="${y(candle.low)}" stroke="${color}" stroke-width="1.4"/><rect x="${x - bodyWidth / 2}" y="${top}" width="${bodyWidth}" height="${Math.max(1.5, bottom - top)}" fill="${color}" rx="0.8"><title>${chartTimeJst(Math.floor(new Date(candle.date).getTime() / 1000))} 始 ${candle.open.toFixed(decimals)} 高 ${candle.high.toFixed(decimals)} 安 ${candle.low.toFixed(decimals)} 終 ${candle.close.toFixed(decimals)}</title></rect>`;
   }).join("");
   const labelIndexes = [0, Math.floor((candles.length - 1) / 2), candles.length - 1];
   const timeLabels = labelIndexes.map((index) => {
     const candle = candles[index];
     const x = margin.left + step * (index + 0.5);
-    const options = timeframe === "d1" ? { month: "numeric", day: "numeric" } : { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" };
-    return `<text x="${x}" y="${height - 11}" text-anchor="${index === 0 ? "start" : index === candles.length - 1 ? "end" : "middle"}" class="pivot-svg-time">${new Date(candle.date).toLocaleString("ja-JP", options)}</text>`;
+    const timestamp = Math.floor(new Date(candle.date).getTime() / 1000);
+    const label = timeframe === "d1" ? chartTickJst(timestamp, 2) : chartTimeJst(timestamp);
+    return `<text x="${x}" y="${height - 11}" text-anchor="${index === 0 ? "start" : index === candles.length - 1 ? "end" : "middle"}" class="pivot-svg-time">${label}</text>`;
   }).join("");
   chartEl.innerHTML = `<svg class="pivot-fallback-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${symbol} ${frame.label}ローソク足">${grid}${pivotLines}${autoLineSvg}${bodies}${timeLabels}</svg>`;
   return true;
@@ -787,8 +883,8 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   if (!window.LightweightCharts) {
     const autoLines = autoLineEnabled.eurusd ? buildPivotAutoLines(frame.candles) : [];
     renderPivotFallback(frame, timeframe, levelStyles, eurusdPivotChartEl, "EUR/USD", 5, autoLineEnabled.eurusd);
-    const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
-    eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
+    const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
+    eurusdPivotStatusEl.textContent = `${frame.label} / 日本時間(JST) / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
     eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>`).join("");
     return;
   }
@@ -804,7 +900,8 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
     layout: { background: { type: "solid", color: "#071311" }, textColor: "#8fa9a3", fontFamily: "Inter, system-ui, sans-serif" },
     grid: { vertLines: { color: "rgba(113, 151, 142, 0.08)" }, horzLines: { color: "rgba(113, 151, 142, 0.1)" } },
     rightPriceScale: { borderColor: "rgba(126, 165, 155, 0.22)", scaleMargins: { top: 0.12, bottom: 0.12 } },
-    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: timeframe !== "d1", secondsVisible: false, rightOffset: 5 },
+    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: timeframe !== "d1", secondsVisible: false, rightOffset: 1, tickMarkFormatter: chartTickJst },
+    localization: { timeFormatter: chartTimeJst },
     crosshair: { mode: LC.CrosshairMode?.Normal ?? 0 }
   });
   const seriesOptions = {
@@ -828,8 +925,8 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
     eurusdPivotChart?.applyOptions({ width: eurusdPivotChartEl.clientWidth, height: eurusdPivotChartEl.clientHeight });
   });
   eurusdPivotResizeObserver.observe(eurusdPivotChartEl);
-  const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
-  eurusdPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
+  const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
+  eurusdPivotStatusEl.textContent = `${frame.label} / 日本時間(JST) / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
   appendLivePivotStatus(eurusdPivotStatusEl, latestLiveFxById.get("eurusd"));
   eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `
     <div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>
@@ -857,8 +954,8 @@ function renderEurusdSovereignSpreadChart() {
   const officialValue = latest ? ` / 最新 ${Number(latest.spreadBp).toFixed(1)}bp` : "";
   const isIntraday = intradayRows.length > 0;
   eurusdPivotStatusEl.textContent = isIntraday
-    ? `仏独10年金利差 15分足 / 実測 ${intradayRows.length}本 / フランス10年 − ドイツ10年${officialValue}`
-    : `仏独10年金利差 / ECB公式${latestEuroSovereignSpread?.frequency || ""} / 15分実測を蓄積中${officialValue}`;
+    ? `仏独10年金利差 15分足 / 日本時間(JST) / 実測 ${intradayRows.length}本 / フランス10年 − ドイツ10年${officialValue}`
+    : `仏独10年金利差 / 日本時間(JST) / ECB公式${latestEuroSovereignSpread?.frequency || ""} / 15分実測を蓄積中${officialValue}`;
   eurusdPivotChartEl.innerHTML = "";
   if (!rows.length) {
     eurusdPivotChartEl.innerHTML = '<div class="pivot-chart-empty">ECB公式金利差データを取得しています。</div>';
@@ -877,9 +974,9 @@ function renderEurusdSovereignSpreadChart() {
     grid: { vertLines: { color: "rgba(113, 151, 142, 0.08)" }, horzLines: { color: "rgba(113, 151, 142, 0.1)" } },
     rightPriceScale: { borderColor: "rgba(126, 165, 155, 0.22)", scaleMargins: { top: 0.12, bottom: 0.12 } },
     leftPriceScale: { visible: true, borderColor: "rgba(255, 209, 102, 0.28)", scaleMargins: { top: 0.12, bottom: 0.12 } },
-    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: isIntraday, secondsVisible: false, rightOffset: 3 },
+    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: isIntraday, secondsVisible: false, rightOffset: 1, tickMarkFormatter: chartTickJst },
     crosshair: { mode: LC.CrosshairMode?.Normal ?? 0 },
-    localization: { priceFormatter: (value) => `${Number(value).toFixed(2)}%` }
+    localization: { priceFormatter: (value) => `${Number(value).toFixed(2)}%`, timeFormatter: chartTimeJst }
   });
   const addLine = (title, color, field, width = 2, priceScaleId = "right") => {
     const options = { title, color, lineWidth: width, priceScaleId, priceFormat: { type: "price", precision: 3, minMove: 0.001 }, lastValueVisible: true, priceLineVisible: false };
@@ -967,6 +1064,11 @@ function formatValue(market, value) {
   return market.unit === "$" ? `$${fixed}` : `${fixed}${market.unit || ""}`;
 }
 
+function displayedCurrentPrice(market) {
+  const quote = Number(market?.quote?.value);
+  return Number.isFinite(quote) && quote > 0 ? quote : Number(market?.forecast?.current);
+}
+
 function formatQuoteAge(market) {
   const quoteAt = Date.parse(market.quote?.at || "");
   if (!Number.isFinite(quoteAt)) return "取得時刻不明";
@@ -980,7 +1082,7 @@ function renderMarketTape(markets) {
   if (!marketTapeEl) return;
   marketTapeEl.innerHTML = (markets || []).slice(0, 7).map((market) => {
     const change = Number(market.forecast?.dailyDeltaPct ?? market.forecast?.deltaPct ?? 0);
-    const current = Number(market.forecast?.current);
+    const current = displayedCurrentPrice(market);
     const tone = change > 0 ? "up" : change < 0 ? "down" : "flat";
     return `<div class="tape-quote ${tone}"><span>${market.label}</span><strong>${formatValue(market, current)}</strong><small>${change >= 0 ? "+" : ""}${change.toFixed(2)}%</small></div>`;
   }).join("");
@@ -1091,7 +1193,7 @@ function buildVoiceBriefing(snapshot) {
   const mainTechnical = (snapshot.aiImprovement?.technicalRows || []).find((row) => row.key === "d1")
     || (snapshot.aiImprovement?.technicalRows || [])[0];
   const smartMoney = snapshot.aiImprovement?.smartMoney;
-  const current = eurusd ? formatValue(eurusd, eurusd.forecast.current) : "未取得";
+  const current = eurusd ? formatValue(eurusd, displayedCurrentPrice(eurusd)) : "未取得";
   const prob = sim.probabilities || {};
   const alertText = topAlert
     ? `現在、${topAlert.label}の${topAlert.severity === "critical" ? "重大" : "注意"}アラートがあります。`
@@ -1402,7 +1504,7 @@ function renderMarkets(markets) {
           <strong>${market.label}</strong>
           <span class="provider" title="${market.quote.provider}">${market.quote.provider}</span>
         </header>
-        <div class="price">${formatValue(market, market.forecast.current)}</div>
+        <div class="price">${formatValue(market, displayedCurrentPrice(market))}</div>
         <div class="forecast ${direction}">
           <span class="arrow">${arrow}</span>
           <strong>${formatValue(market, market.forecast.predicted)}</strong>
@@ -1411,7 +1513,7 @@ function renderMarkets(markets) {
         <div class="confidence">
           信頼度 ${(market.forecast.confidence * 100).toFixed(0)}% / 学習 ${market.forecast.calibration.samples}件
         </div>
-        <div class="quote-age ${market.quote.marketSession?.isOpen === false ? "closed" : Number(market.quote.freshnessSeconds || 0) > 75 ? "stale" : "fresh"}">
+        <div class="quote-age ${market.quote.marketSession?.isOpen === false ? "closed" : market.quote.synthetic || actualAgeSeconds(market.quote.at, market.quote.freshnessSeconds) > 75 ? "stale" : "fresh"}">
           ${market.quote.marketSession?.isOpen === false ? "最終取引値" : "現在値"} ${formatQuoteAge(market)}
           ${market.quote.marketSession?.label ? ` / ${market.quote.marketSession.label}` : ""}
         </div>
@@ -1419,6 +1521,18 @@ function renderMarkets(markets) {
           <div class="quote-source-row">
             <span>価格ソース 採用${market.quote.trustedSourceCount ?? market.quote.sourceCount}/${market.quote.sourceCount}系統</span>
             <strong>${market.id === "eurusd" && Number.isFinite(Number(market.quote.qualityScore)) ? `品質 ${Number(market.quote.qualityScore).toFixed(0)}点 / ` : ""}乖離 ${Number(market.quote.sourceDeviationPct || 0).toFixed(4)}%</strong>
+          </div>
+        ` : ""}
+        ${["eurusd", "usdjpy"].includes(market.id) && market.forecast.yieldFeatureReliability?.excludedOutcomeRows != null ? `
+          <div class="quote-source-row">
+            <span>金利要因・期限後照合</span>
+            <strong>不備 ${Number(market.forecast.yieldFeatureReliability.excludedOutcomeRows)}件除外</strong>
+          </div>
+        ` : ""}
+        ${["eurusd", "usdjpy"].includes(market.id) && market.forecast.aiAdjustment?.recentSkill?.excludedOutcomeRows != null ? `
+          <div class="quote-source-row recent-skill-audit">
+            <span>直近補正の証跡</span>
+            <strong>採用 ${Number(market.forecast.aiAdjustment.recentSkill.samples)}件 / 不備 ${Number(market.forecast.aiAdjustment.recentSkill.excludedOutcomeRows)}件・重複 ${Number(market.forecast.aiAdjustment.recentSkill.overlapExcluded)}件除外</strong>
           </div>
         ` : ""}
         <div class="driver-row">
@@ -1637,10 +1751,10 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
     r3: ["R3", "#ff5971"], r2: ["R2", "#ff7181"], r1: ["R1", "#ff9a73"],
     p: ["P", "#ffd166"], s1: ["S1", "#69d7c3"], s2: ["S2", "#48b8d0"], s3: ["S3", "#5b96df"]
   };
-  const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
+  const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
   const updateSummary = () => {
     const autoCount = autoLineEnabled.usdjpy ? buildPivotAutoLines(frame.candles).length : 0;
-    usdjpyPivotStatusEl.textContent = `${frame.label} / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoCount}本 / 基準 ${calculated}${pivotBasisSummary(frame, decimals)}`;
+    usdjpyPivotStatusEl.textContent = `${frame.label} / 日本時間(JST) / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoCount}本 / 基準 ${calculated}${pivotBasisSummary(frame, decimals)}`;
     usdjpyPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(decimals)}</strong></div>`).join("");
   };
   if (!window.LightweightCharts) {
@@ -1660,7 +1774,8 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
     layout: { background: { type: "solid", color: "#071311" }, textColor: "#8fa9a3", fontFamily: "Inter, system-ui, sans-serif" },
     grid: { vertLines: { color: "rgba(113, 151, 142, 0.08)" }, horzLines: { color: "rgba(113, 151, 142, 0.1)" } },
     rightPriceScale: { borderColor: "rgba(126, 165, 155, 0.22)", scaleMargins: { top: 0.12, bottom: 0.12 } },
-    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: timeframe !== "d1", secondsVisible: false, rightOffset: 5 },
+    timeScale: { borderColor: "rgba(126, 165, 155, 0.22)", timeVisible: timeframe !== "d1", secondsVisible: false, rightOffset: 1, tickMarkFormatter: chartTickJst },
+    localization: { timeFormatter: chartTimeJst },
     crosshair: { mode: LC.CrosshairMode?.Normal ?? 0 }
   });
   const options = {
@@ -1721,6 +1836,7 @@ function renderFinanceMonitorOverview(monitor) {
   financeMonitorPanelEl.className = `finance-monitor-wrap ${monitor.level || "calm"}`;
   financeMonitorStatusEl.textContent = monitor.headline || "世界市場を監視中";
   const breadth = monitor.breadth || {};
+  const distortion = monitor.distortion || {};
   financeMonitorOverviewEl.innerHTML = `
     <div class="finance-monitor-lead ${monitor.regime?.tone || "neutral"}">
       <span>現在の市場環境</span>
@@ -1738,6 +1854,21 @@ function renderFinanceMonitorOverview(monitor) {
     </div>
     <div class="finance-monitor-grid">
       ${(monitor.tiles || []).map((tile) => `<div class="finance-monitor-tile ${tile.tone || "neutral"}"><span>${tile.label}</span><strong>${tile.value}</strong><small>${tile.detail}</small></div>`).join("")}
+    </div>
+    <div class="distortion-radar ${distortion.level || "normal"}">
+      <div class="distortion-radar-head">
+        <div><span>市場の歪みレーダー</span><strong>${distortion.label || "分析中"}</strong></div>
+        <b>${distortion.score || 0}</b>
+      </div>
+      <div class="distortion-radar-grid">
+        ${(distortion.items || []).slice(0, 7).map((item) => `<article class="${item.level || "normal"}" title="${item.implication || ""}">
+          <div><span>${item.label}</span><strong>${item.score}</strong></div>
+          <i><b style="width:${item.score}%"></b></i>
+          <small>${item.detail}</small>
+          <em>${item.implication}</em>
+        </article>`).join("")}
+      </div>
+      <small class="distortion-policy">${distortion.policy || "歪み単独では売買しません。"}</small>
     </div>
     <div class="finance-hotspots">
       <span>注目拠点</span>
@@ -1855,7 +1986,20 @@ function renderExternalSignalShadow(view) {
   const expectancy = view.expectancyPct == null
     ? "--"
     : `${view.expectancyPct >= 0 ? "+" : ""}${Number(view.expectancyPct).toFixed(4)}%`;
-  externalSignalShadowEl.innerHTML = `<strong>外部シグナル影検証</strong><span>${escapeMarkup(view.status)}</span><span>照合 ${view.samples}/${view.minimumSamples}件</span><span>待ち ${view.pending}件</span><span>コスト後平均 ${expectancy}</span><small>Webhookは影検証のみ・実資金注文なし</small>`;
+  externalSignalShadowEl.innerHTML = `<strong>外部シグナル影検証</strong><span>${escapeMarkup(view.status)}</span><span>照合 ${view.samples}/${view.minimumSamples}件</span><span>待ち ${view.pending}件</span><span>コスト後平均 ${expectancy}</span><small>Webhookは仮想の影検証専用</small>`;
+}
+
+function renderDeliveryBandwidth(meter) {
+  if (!deliveryBandwidthEl) return;
+  const valid = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) && Number(value) >= 0;
+  const gib = (value) => valid(value) ? `${(Number(value) / (1024 ** 3)).toFixed(2)} GiB` : "--";
+  const month = /^\d{4}-\d{2}$/.test(String(meter?.month || "")) ? meter.month : "--";
+  const responses = valid(meter?.responses) ? Math.floor(Number(meter.responses)).toLocaleString("ja-JP") : "--";
+  deliveryBandwidthEl.innerHTML = `<strong>画面向けJSON応答量（UTC月）</strong>
+    <span>${month} / ${gib(meter?.bytes)} / ${responses}回</span>
+    <small>月末見込み ${gib(meter?.projectedBytes)}（今月の平均ペースによる目安）</small>
+    <small>圧縮後のJSON応答本文の記録値。PC内・スマートフォン向けを含みます。実際の受信完了は確認できません。</small>
+    <small>GitHub、ニュース・価格の取得、画像・画面ファイル、通信ヘッダーは含まないため、インターネット全体やスマートフォンの通信量ではありません。</small>`;
 }
 
 function renderDataHealth(health) {
@@ -2090,15 +2234,29 @@ function renderAndroidAccess(access, highConfidenceNotification = latestSnapshot
   });
 }
 
+function renderReleaseComparison(item) {
+  const time = (value) => escapeMarkup(new Date(value).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
+  const isGdp = item.type === "bea_advance_gdp";
+  const validUrl = isGdp ? /^https:\/\/www\.bea\.gov\/news\/\d{4}\/gdp-[a-z0-9-]+$/.test(item.actualSource || "") : /^https:\/\/www\.federalreserve\.gov\/newsevents\/pressreleases\/monetary\d{8}[a-z]\.htm$/.test(item.actualSource || "");
+  if (!isGdp && item.type !== "fomc_target_range") return "";
+  const actual = isGdp ? `BEA 実質GDP速報・前期比年率 ${escapeMarkup(item.actual)}% / 対象 ${escapeMarkup(item.period)}` : `FRB発表レンジ ${escapeMarkup(item.lower)}〜${escapeMarkup(item.upper)}%`;
+  const source = isGdp ? "BEA公式速報" : "FRB公式声明";
+  return `<p>${isGdp ? "米GDP速報" : "米政策金利"} / 発表 ${time(item.publishedAt)} JST / 事前予想 ${escapeMarkup(item.forecast)}（取得 ${time(item.forecastObservedAt)} JST）</p><p>${actual} / 取得 ${time(item.actualFetchedAt)} JST</p><small>予想: Fair Economy / 実績: ${validUrl ? `<a href="${escapeMarkup(item.actualSource)}" target="_blank" rel="noopener noreferrer">${source}</a>` : `${source}（リンク確認不可）`}</small>`;
+}
+
 function renderEconomicCalendar(calendar) {
   if (!calendar) return;
-  calendarStatusEl.textContent = `${calendar.status || "監視中"} / 圧力 ${Math.round(Number(calendar.releasePressure || 0) * 100)}% / サプライズ ${Math.round(Number(calendar.surprisePressure || 0) * 100)}%`;
+  calendarStatusEl.textContent = `${calendar.status || "監視中"} / 警戒度 ${Math.round(Number(calendar.releasePressure || 0) * 100)}% / 指標サプライズは未照合`;
   const rows = (calendar.rows || []).slice(0, 6);
+  const evidence = calendar.forecastObservation;
+  const comparisons = calendar.releaseComparisons;
+  const comparisonHtml = comparisons ? `<div class="calendar-item watch"><div><strong>発表値と事前予想の照合</strong><span>米政策金利・米GDP速報</span></div><small>指標名と発表時刻で対応付け。民間予想の対象期間・単位の定義は未確認のため、差やサプライズは判定せず、売買にも使いません。</small>${comparisons.status === "unavailable" || comparisons.status === "unrecognized" || comparisons.gdpStatus === "unavailable" ? `<small>公式発表の取得または形式の確認ができません。保存済み記録を表示します。</small>` : ""}${comparisons.gdpStatus === "not_due" || comparisons.gdpStatus === "not_available" ? `<small>米GDP速報は発表または公式資料の確認待ちです。</small>` : ""}${(comparisons.records || []).length ? (comparisons.records || []).map(renderReleaseComparison).join("") : `<p>照合可能な発表を待っています。</p>`}</div>` : "";
+  const evidenceHtml = evidence ? `<div class="calendar-item watch"><div><strong>発表前の予想記録</strong><span>${Number(evidence.count || 0)}件保存</span></div><small>出典: Fair Economyのカレンダー / 予想の定義は未検証 / 一部発表との対応は別欄 / 売買未使用。表示は最後に記録した値で、現在値とは限りません。</small>${evidence.status !== "ok" ? `<small>最新の取得は確認できません。保存済みの記録は保持しています。</small>` : ""}${evidence.capacityReached ? `<small>保存上限に到達。過去記録は消さず、新規保存を停止しています。</small>` : ""}${(evidence.upcoming || []).map((item) => `<p>${escapeMarkup(item.currency)} ${escapeMarkup(item.title)} / 予定 ${escapeMarkup(formatCandleTime(item.eventAt))} / 予想 ${escapeMarkup(item.forecast ?? "提供なし")} / 取得 ${escapeMarkup(formatCandleTime(item.observedAt))}</p>`).join("")}</div>` : "";
   if (!rows.length) {
-    economicCalendarEl.innerHTML = `<div class="calendar-empty">EUR/USDに影響しやすい重要指標を監視しています。</div>`;
+    economicCalendarEl.innerHTML = `${comparisonHtml}${evidenceHtml}<div class="calendar-empty">EUR/USDに影響しやすい重要指標を監視しています。</div>`;
     return;
   }
-  economicCalendarEl.innerHTML = rows.map((item) => `
+  economicCalendarEl.innerHTML = comparisonHtml + evidenceHtml + rows.map((item) => `
     <a class="calendar-item ${item.level || "watch"}" href="${item.url || "#"}" target="_blank" rel="noreferrer">
       <div>
         <strong>${item.phase || "監視"}</strong>
@@ -2108,7 +2266,7 @@ function renderEconomicCalendar(calendar) {
       ${item.surprise ? `
         <div class="calendar-surprise ${Number(item.surprise.bias || 0) > 0 ? "up" : Number(item.surprise.bias || 0) < 0 ? "down" : "flat"}">
           <strong>${item.surprise.impact || "方向判定中"}</strong>
-          <span>${item.surprise.label || "数値待ち"} / 乖離 ${Math.round(Number(item.surprise.score || 0) * 100)}%</span>
+          <span>${item.surprise.label || "数値待ち"} / 売買方向には未使用</span>
           <small>${item.surprise.detail || ""}</small>
         </div>
       ` : ""}
@@ -2136,7 +2294,10 @@ function renderCotAnalysis(cot) {
   const assetManager = cot.layers?.assetManager || cot.groups?.assetManager || {};
   const legacySpeculators = cot.layers?.legacySpeculators || {};
   const crowdingRisk = cot.crowdingRisk || {};
+  const speculativeFlow = cot.speculativeFlow || cot.layers?.leveragedFunds?.flow || {};
   const cotForward = cot.forwardValidation || {};
+  const usdjpyCot = cot.usdjpy || null;
+  const usdjpyCotForward = usdjpyCot?.forwardValidation || {};
   const cotForwardLayers = Object.values(cotForward.layers || {});
   const longShare = Math.max(0, Math.min(100, Number(cot.longShare || 0) * 100));
   const shortShare = Math.max(0, Math.min(100, Number(cot.shortShare || 0) * 100));
@@ -2195,8 +2356,25 @@ function renderCotAnalysis(cot) {
       <div><span>長期運用会社</span><strong>${Number(assetManager.net || 0).toLocaleString("ja-JP")}枚</strong><small>週足・月足 / 前週変化 ${Number(assetManager.netChange || 0).toLocaleString("ja-JP")}</small></div>
       <div><span>短期投機筋の建玉比率</span><strong>${Math.round(Number(leveraged.netPct ?? cot.netPct ?? 0) * 1000) / 10}%</strong><small>${crowdingRisk.label || `混み具合 ${Math.round(Number(cot.crowding || 0) * 100)}%`}</small></div>
       <div><span>4時間方向圧力</span><strong class="${Number(cot.horizonSignals?.h4?.pressure || 0) >= 0 ? "up" : "down"}">${Number(cot.horizonSignals?.h4?.pressure || 0) >= 0 ? "+" : ""}${Number(cot.horizonSignals?.h4?.pressure || 0).toFixed(2)}</strong><small>${cot.horizonSignals?.h4?.role || "レバレッジファンド主導"}</small></div>
+      <div><span>投機筋の売買内訳</span><strong class="${speculativeFlow.direction === "up" ? "up" : speculativeFlow.direction === "down" ? "down" : ""}">${speculativeFlow.label || "判定待ち"}</strong><small>${speculativeFlow.persistence || "新規建玉と手仕舞いを分離"}</small></div>
+      <div><span>新規買い / 買い戻し</span><strong>${Number(speculativeFlow.components?.newLongs || 0).toLocaleString("ja-JP")} / ${Number(speculativeFlow.components?.shortCovering || 0).toLocaleString("ja-JP")}枚</strong><small>買いフロー圧力 ${Number(speculativeFlow.pressure || 0) >= 0 ? "+" : ""}${Number(speculativeFlow.pressure || 0).toFixed(2)}</small></div>
+      <div><span>新規売り / ロング手仕舞い</span><strong>${Number(speculativeFlow.components?.newShorts || 0).toLocaleString("ja-JP")} / ${Number(speculativeFlow.components?.longLiquidation || 0).toLocaleString("ja-JP")}枚</strong><small>30公表の前向き検証後だけ4時間・24時間予測へ最大15%反映</small></div>
       <div><span>月足方向圧力</span><strong class="${Number(cot.horizonSignals?.mo1?.pressure || 0) >= 0 ? "up" : "down"}">${Number(cot.horizonSignals?.mo1?.pressure || 0) >= 0 ? "+" : ""}${Number(cot.horizonSignals?.mo1?.pressure || 0).toFixed(2)}</strong><small>${cot.horizonSignals?.mo1?.role || "資産運用会社主導"}</small></div>
     </div>
+    ${usdjpyCot ? `
+      <div class="cot-forward-ledger">
+        <div class="cot-forward-head">
+          <div><span>USD/JPY・CFTC円先物</span><strong class="${usdjpyCot.direction === "up" ? "up" : usdjpyCot.direction === "down" ? "down" : ""}">${usdjpyCot.verdict}</strong></div>
+          <small>${usdjpyCot.mappingNote} COTは火曜時点を金曜公表する週次データで、1分足の売買開始には使いません。</small>
+        </div>
+        <div class="cot-grid">
+          <div><span>円先物・短期投機筋</span><strong>${Number(usdjpyCot.layers?.leveragedFunds?.net || 0).toLocaleString("ja-JP")}枚</strong><small>前週変化 ${Number(usdjpyCot.layers?.leveragedFunds?.netChange || 0).toLocaleString("ja-JP")}枚</small></div>
+          <div><span>USD/JPY 4時間圧力</span><strong class="${Number(usdjpyCot.horizonSignals?.h4?.pressure || 0) >= 0 ? "up" : "down"}">${Number(usdjpyCot.horizonSignals?.h4?.pressure || 0) >= 0 ? "+" : ""}${Number(usdjpyCot.horizonSignals?.h4?.pressure || 0).toFixed(2)}</strong><small>円先物方向を反転済み</small></div>
+          <div><span>建玉フロー</span><strong>${usdjpyCot.speculativeFlow?.label || "判定待ち"}</strong><small>USD/JPY換算圧力 ${Number(usdjpyCot.speculativeFlow?.pressure || 0) >= 0 ? "+" : ""}${Number(usdjpyCot.speculativeFlow?.pressure || 0).toFixed(2)}</small></div>
+          <div><span>独立前向き検証</span><strong>${usdjpyCotForward.settledReports || 0}公表照合</strong><small>EUR/USD台帳と混合せず、最低${usdjpyCotForward.minimumSamples || 30}公表まで本番加点なし</small></div>
+        </div>
+      </div>
+    ` : ""}
     <div class="cot-forward-ledger" id="cot-forward-ledger">
       <div class="cot-forward-head">
         <div><span>COT層別 前向き成績台帳</span><strong>${cotForward.settledReports || 0}公表を照合済み</strong></div>
@@ -2320,31 +2498,48 @@ function renderImportantInfo(items) {
   `).join("");
 }
 
+function summarizeEurusdDisplay(simulation) {
+  const final = simulation?.finalDecision;
+  if (final?.version === "eurusd-display-decision-v1") {
+    const score = final.probability == null ? "--" : `${Math.round(final.probability * 100)}%`;
+    return { direction: final.directionLabel, decision: final.qualityDecision, score, reason: final.reason };
+  }
+  const direction = simulation?.direction === "up" ? "上方向" : simulation?.direction === "down" ? "下方向" : "方向不明";
+  const accepted = simulation?.qualityGate?.currentAccepted;
+  const decision = accepted === true && direction !== "方向不明" ? "品質条件を通過"
+    : accepted === false || (accepted === true && direction === "方向不明") ? "見送り" : "品質判定待ち";
+  const raw = simulation?.probabilities?.calibratedMain;
+  const score = raw != null && Number.isFinite(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 1 ? `${Math.round(Number(raw) * 100)}%` : "--";
+  return { direction, decision, score, reason: simulation?.qualityGate?.reason || "判定条件を確認中" };
+}
+
 function renderEurusdCommand(command, market, sim = null) {
   if (!command || !market) {
     eurusdCommandEl.innerHTML = `<div class="eurusd-command-empty">EUR/USD司令塔を準備中です。</div>`;
     return;
   }
-  eurusdCommandPanelEl.className = `eurusd-command-wrap ${command.stanceTone || "flat"}`;
-  eurusdCommandStatusEl.textContent = command.stance || "分析中";
+  const display = summarizeEurusdDisplay(sim);
+  eurusdCommandPanelEl.className = `eurusd-command-wrap ${sim?.qualityGate?.currentAccepted === true ? command.stanceTone || "flat" : "flat"}`;
+  eurusdCommandStatusEl.textContent = display.decision;
   const range = command.range || {};
   const confidence = command.confidence || {};
   const reflection = command.latestReflection;
   const topNews = command.topNews;
   const simulation = sim || {};
+  const economicConsultation = simulation.economicConsultation;
   const scenarios = simulation.scenarios || [];
   const calibration = simulation.calibration || {};
+  const directionAudit = simulation.directionalProbabilityAudit;
   const gate = simulation.qualityGate || {};
   const votes = simulation.modelVotes || {};
   const performanceGuard = simulation.timeframePerformanceGuard || {};
-  const calibratedProbability = Math.round(Number(simulation.probabilities?.calibratedMain || 0) * 100);
   const formatSimulationPrice = (value) => Number(value || 0).toLocaleString("ja-JP", { minimumFractionDigits: 5, maximumFractionDigits: 5 });
   eurusdCommandEl.innerHTML = `
     <div class="command-main">
       <div class="command-stance">
-        <span>${command.headline || "EUR/USD司令塔"}</span>
-        <strong>${command.stance || "様子見"}</strong>
-        <p>${command.action || "短期とニュースを監視しています。"}</p>
+        <span>予測方向と品質判断は別です</span>
+        <strong>${display.decision}</strong>
+        <p>予測方向: ${display.direction} / ${escapeMarkup(display.reason)}</p>
       </div>
       <div class="command-range">
         <span>10分後 予測レンジ</span>
@@ -2353,27 +2548,31 @@ function renderEurusdCommand(command, market, sim = null) {
       </div>
     </div>
     <div class="command-drivers">
+      <span>参考材料（方向予測と異なる場合があります）</span>
       ${(command.drivers || []).map((item) => `<span>${item}</span>`).join("")}
     </div>
     ${sim ? `<div class="command-probability">
       <div class="command-probability-head">
-        <div><span>予測確率・品質判定</span><strong>${simulation.status || "計算中"} ${calibratedProbability}%</strong></div>
-        <div class="${gate.currentAccepted ? "accepted" : "rejected"}"><span>現在判断</span><strong>${gate.currentAccepted ? "検証候補" : "見送り"}</strong><small>${gate.reason || gate.status || "判定中"}</small></div>
+        <div><span>方向モデルの補正値（勝率ではない）</span><strong>${display.direction} / ${display.score}</strong></div>
+        <div class="${gate.currentAccepted === true ? "accepted" : "rejected"}"><span>品質判定</span><strong>${display.decision}</strong><small>${escapeMarkup(display.reason)} / 実際の発注条件は仮想口座で確認</small></div>
       </div>
+      <small>以下はモデルの試算で、実測勝率ではありません。</small>
+      ${economicConsultation?.requested ? `<div class="paper-regime-guard waiting"><div><span>経済知識への自動照会</span><strong>${escapeMarkup(economicConsultation.status || "確認中")}</strong></div>${(economicConsultation.topics || []).map((topic) => `<small><b>${escapeMarkup(topic.title)}</b>: ${escapeMarkup(topic.summary)} / ${escapeMarkup(topic.caveat)}</small>`).join("")}<small>${escapeMarkup(economicConsultation.warning || "")}</small>${(economicConsultation.topics || []).flatMap((topic) => topic.sources || []).filter((source) => /^https:\/\//.test(source.url || "")).slice(0, 4).map((source) => `<a href="${escapeMarkup(source.url)}" target="_blank" rel="noopener noreferrer">${escapeMarkup(source.title)}</a> `).join("")}</div>` : ""}
       <div class="command-scenarios">
         ${scenarios.map((item) => `<div><span>${item.label}</span><i><b style="width:${Math.max(2, Math.round(Number(item.probability || 0) * 100))}%"></b></i><strong>${Math.round(Number(item.probability || 0) * 100)}%</strong></div>`).join("")}
       </div>
       <div class="command-probability-grid">
         <div><span>分布レンジ 10-90%</span><strong>${formatSimulationPrice(simulation.rangePrice?.low)} - ${formatSimulationPrice(simulation.rangePrice?.high)}</strong><small>中央値 ${formatSimulationPrice(simulation.rangePrice?.mid)}</small></div>
         <div><span>開始からの方向一致</span><strong>${calibration.actualHitRate == null ? "--" : `${Math.round(Number(calibration.actualHitRate) * 100)}%`}</strong><small>${calibration.samples || 0}件 / Brier ${calibration.brierScore ?? "--"}</small></div>
-        <div><span>6モデル合議</span><strong>${votes.label || "集計中"}</strong><small>一致 ${votes.agreement || 0}/${votes.models?.length || 6}</small></div>
+        <div id="directional-probability-audit"><span>直近の方向予測を再採点（検証用）</span>${directionAudit ? `<strong>${directionAudit.hitRate == null ? "判定材料なし" : `${Math.round(directionAudit.hitRate * 100)}%`}</strong><small>直近${directionAudit.windowSamples}件中、対象 ${directionAudit.samples}件 / 一致 ${directionAudit.hits}件 / Brier ${directionAudit.brierScore ?? "--"}。横ばい ${directionAudit.excluded?.flat ?? 0}件、方向・確率なし ${Number(directionAudit.excluded?.missingDirection || 0) + Number(directionAudit.excluded?.missingProbability || 0)}件、価格不備 ${directionAudit.excluded?.invalidPrice ?? 0}件、実際の値動きが中立 ${directionAudit.excluded?.neutralActual ?? 0}件を除外。既存採点と同じ対象のため合議価格が中立の予測は含まれず、全予測の精度ではありません。売買判断には未反映。</small>` : `<strong>サーバー更新待ち</strong><small>再採点結果はまだ反映されていません。</small>`}</div>
+        <div><span>別モデル合議（方向予測とは別）</span><strong>${votes.label || "集計中"}</strong><small>一致 ${votes.agreement || 0}/${votes.models?.length || 6}</small></div>
         <div><span>低成績時間足</span><strong>${performanceGuard.status || "成績蓄積中"}</strong><small>${performanceGuard.active ? performanceGuard.weakTimeframes.map((row) => `${row.label} ${Math.round(Number(row.hitRate || 0) * 100)}%→重み${Math.round(Number(row.weight || 0) * 100)}%`).join(" / ") : performanceGuard.method || "前向き成績を監視"}</small></div>
       </div>
     </div>` : ""}
     <div class="confidence-breakdown">
       <div class="confidence-breakdown-head">
-        <span>信頼度分解</span>
-        <strong>${confidence.score || 0}% / ${confidence.label || "中立"}</strong>
+        <span>情報集計スコア（勝率ではない）</span>
+        <strong>${confidence.score ?? "--"}${confidence.score == null ? "" : "%"}</strong>
       </div>
       ${(confidence.rows || []).map((item) => `
         <div class="confidence-row">
@@ -2478,6 +2677,15 @@ function formatHorizon(minutes) {
   return `${value}分後`;
 }
 
+function formatTimeframeCalibrationShadow(row) {
+  if (!row) return "補正候補: 比較待ち・未採用";
+  const samples = Math.max(0, Number(row.samples) || 0);
+  const missing = Math.max(0, Number(row.missingVersion) || 0);
+  if (!samples && missing) return `補正候補: 0件・モデル記録不明 ${missing}件除外・未採用`;
+  if (!samples) return "補正候補: 0件・未採用";
+  return `補正候補: 過去 ${samples}件 / 現行誤差 ${Number(row.baselineMaePct).toFixed(4)}% / 候補 ${Number(row.candidateMaePct).toFixed(4)}%・未採用 / 同じモデルIDでも内部世代は未確認`;
+}
+
 function renderEurusdTimeframes(items, learning, dailyReference) {
   const rows = (items || []).slice(0, 7);
   const learningRows = Object.fromEntries((learning?.rows || []).map((row) => [row.key, row]));
@@ -2553,7 +2761,8 @@ function renderEurusdTimeframes(items, learning, dailyReference) {
           <span>学習 ${stat.samples || 0}件</span>
           <strong>方向一致 ${hitRate}</strong>
           <small>平均誤差 ${mae} / 補正 ${correction >= 0 ? "+" : ""}${correction.toFixed(4)}%</small>
-          <small>将来検証 ${stat.walkForward?.validationSamples || 0}件 / ${stat.walkForward?.ready ? `一致 ${pctText(stat.walkForward.hitRate)}` : "蓄積中"}</small>
+          <small>期間後半評価 ${stat.walkForward?.validationSamples || 0}件 / ${stat.walkForward?.ready ? `一致 ${pctText(stat.walkForward.hitRate)}` : "蓄積中"} / 期間重複 ${stat.walkForward?.overlapExcluded || 0}件除外</small>
+          <small>${formatTimeframeCalibrationShadow(stat.shadowCalibration)}</small>
         </div>
         <div class="timeframe-trend">
           <span>${item.trend?.label || "方向分析中"}</span>
@@ -2637,6 +2846,21 @@ function updatePairDecisionValidityCountdowns() {
   });
 }
 
+function paperOutcomeLabel(snapshot, assetId) {
+  const row = snapshot?.paperTrading?.tradeOutcomeSummary?.[assetId];
+  if (!row || !Number.isInteger(row.decided) || row.decided < 0 || !Number.isInteger(row.wins) || !Number.isInteger(row.losses) || row.wins + row.losses !== row.decided) return "仮想決済勝率 --（集計待ち）";
+  if (!row.decided) return `仮想決済勝率 --（勝敗0件 / 同値${row.breakeven || 0}・不明${row.unknown || 0}）`;
+  return `仮想決済勝率 ${(row.wins / row.decided * 100).toFixed(1)}%（${row.wins}勝${row.losses}敗 / 同値${row.breakeven || 0}・不明${row.unknown || 0}を除外）`;
+}
+
+function currentTrendFlow(frame, now = Date.now()) {
+  const flow = frame?.trendFlow;
+  const end = Date.parse(flow?.closedAt || "");
+  const interval = Number(frame?.minutes) * 60_000;
+  if (!flow?.ready || !Number.isFinite(end) || !Number.isFinite(interval) || interval <= 0 || end > now || now - end > interval * 3) return null;
+  return flow;
+}
+
 function renderPairDecisionDeck(snapshot) {
   if (!pairDecisionDeckEl || !pairDecisionCardsEl) return;
   const markets = snapshot?.markets || [];
@@ -2653,15 +2877,16 @@ function renderPairDecisionDeck(snapshot) {
   const validUntil = analyzedAt + horizonMinutes * 60_000;
   const findFrame = (items, key) => items.find((item) => item.key === key);
   const direction = (value) => value === "up" ? "buy" : value === "down" ? "sell" : "waiting";
-  const action = (value) => value === "up" ? "買い" : value === "down" ? "売り" : "見送り";
+  const action = (value) => value === "up" ? "買い方向" : value === "down" ? "売り方向" : "方向不明";
   const arrow = (value) => value === "up" ? "↑" : value === "down" ? "↓" : "→";
-  const horizon = (item) => item ? `${arrow(item.direction)} ${action(item.direction)} ${Math.round(Number(item.calibratedProbability ?? item.confidence ?? 0.5) * 100)}%` : "確認中";
+  const horizon = (item) => item ? `${arrow(item.direction)} ${action(item.direction)}` : "確認中";
   const price = (value, digits) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value).toFixed(digits) : "--";
-  const eurusdDirection = eurusdSimulation.direction || eurusdCommand.stanceTone || eurusdMarket?.forecast?.direction || "flat";
+  const eurusdDisplay = summarizeEurusdDisplay(eurusdSimulation);
+  const eurusdDirection = eurusdSimulation.finalDecision?.direction || eurusdSimulation.direction || "flat";
   const usdjpyDirection = usdjpy.direction || "flat";
   const eurusdConfidence = Number(eurusdSimulation.probabilities?.calibratedMain ?? eurusdMarket?.forecast?.confidence ?? 0.5) * 100;
   const usdjpyConfidence = Number(usdjpy.confidence || usdjpyMarket?.forecast?.confidence || 0) * 100;
-  const eurusdReason = [eurusdCommand.action, ...(eurusdCommand.drivers || []).slice(0, 2)]
+  const eurusdReason = [eurusdDisplay.reason, ...(eurusdCommand.drivers || []).slice(0, 2)]
     .filter(Boolean)
     .join(" / ") || "価格・ニュース・金利の合議を確認中です。";
   const yenDriverReason = (yenCommand.drivers || []).slice(0, 2)
@@ -2676,12 +2901,14 @@ function renderPairDecisionDeck(snapshot) {
       id: "eurusd",
       label: "EUR/USD",
       direction: eurusdDirection,
+      qualityDecision: eurusdDisplay.decision,
       current: eurusdMarket?.quote?.value ?? eurusdMarket?.forecast?.current,
       predicted: eurusdMarket?.forecast?.predicted,
       deltaPct: eurusdMarket?.forecast?.deltaPct,
       confidence: eurusdDirection === "flat" ? null : eurusdConfidence,
-      fresh: eurusdMarket?.quote?.freshnessSeconds,
+      fresh: eurusdMarket?.quote?.at ? actualAgeSeconds(eurusdMarket.quote.at, eurusdMarket.quote.freshnessSeconds) : Infinity,
       h4: findFrame(eurusdFrames, "h4"),
+      flowFrames: eurusdFrames,
       d1: findFrame(eurusdFrames, "d1"),
       reason: eurusdReason,
       digits: 5
@@ -2690,12 +2917,13 @@ function renderPairDecisionDeck(snapshot) {
       id: "usdjpy",
       label: "USD/JPY",
       direction: usdjpyDirection,
-      current: usdjpy.current ?? usdjpyMarket?.quote?.value,
+      current: usdjpyMarket?.quote?.value ?? usdjpy.current,
       predicted: usdjpy.predicted ?? usdjpyMarket?.forecast?.predicted,
       deltaPct: usdjpy.deltaPct ?? usdjpyMarket?.forecast?.deltaPct,
       confidence: usdjpyDirection === "flat" ? null : usdjpyConfidence,
-      fresh: usdjpy.freshnessSeconds ?? usdjpyMarket?.quote?.freshnessSeconds,
+      fresh: usdjpyMarket?.quote?.at ? actualAgeSeconds(usdjpyMarket.quote.at, usdjpyMarket.quote.freshnessSeconds) : usdjpy.freshnessSeconds,
       h4: findFrame(usdjpyFrames, "h4"),
+      flowFrames: usdjpyFrames,
       d1: findFrame(usdjpyFrames, "d1"),
       reason: usdjpyReason,
       digits: 3
@@ -2704,9 +2932,9 @@ function renderPairDecisionDeck(snapshot) {
   const performance = snapshot?.pairDecisionPerformance || {};
   const performanceLabel = (assetId, horizon) => {
     const row = performance?.[assetId]?.[horizon];
-    if (!row?.samples) return `${horizon} 蓄積待ち`;
+    if (!row?.samples) return `${horizon}方向一致 -- / 0件（未照合${row?.missed || 0}件）`;
     const qualifier = Number(row.samples) < 30 ? "参考" : "検証";
-    return `${horizon} ${Math.round(Number(row.hitRate || 0) * 100)}%・${row.samples}件 ${qualifier}`;
+    return `${horizon}方向一致 ${row.correct}/${row.samples}件 ${Math.round(Number(row.hitRate || 0) * 100)}% ${qualifier}・未照合${row.missed || 0}件`;
   };
   const serverDecisionStates = Object.fromEntries((snapshot?.pairDecisionStatus || []).map((row) => [row.assetId, {
     direction: row.direction,
@@ -2735,7 +2963,7 @@ function renderPairDecisionDeck(snapshot) {
   }
   pairDecisionDeckEl.className = "pair-decision-deck live";
   pairDecisionCardsEl.innerHTML = cards.map((card) => {
-    const tone = direction(card.direction);
+    const tone = card.id === "eurusd" && card.qualityDecision !== "品質条件を通過" ? "waiting" : direction(card.direction);
     const delta = Number(card.deltaPct || 0);
     const state = nextStates[card.id] || {};
     const recentlyChanged = Boolean(state.previousDirection && state.previousDirection !== card.direction && Date.now() - Number(state.changedAt || 0) < PAIR_DECISION_CHANGE_ALERT_MS);
@@ -2743,21 +2971,32 @@ function renderPairDecisionDeck(snapshot) {
     const persistentChangeLabel = state.previousDirection && state.previousDirection !== card.direction
       ? `前回 ${action(state.previousDirection)} → 現在 ${action(card.direction)} / ${new Date(Number(state.changedAt || analyzedAt)).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}変更`
       : "";
+    const shortFlow = currentTrendFlow(findFrame(card.flowFrames, "m5"));
+    const longFlow = currentTrendFlow(findFrame(card.flowFrames, "h1"));
+    const directional = (flow) => flow && ["up", "down"].includes(flow.state);
+    const flowRelation = directional(shortFlow) && directional(longFlow)
+      ? shortFlow.state === longFlow.state ? "5分と1時間の方向が一致" : "5分と1時間の方向が逆"
+      : "足の一致・不一致は判定不可";
     return `<a class="pair-decision-card ${tone}${recentlyChanged ? " changed" : ""}" href="#${card.id}-pivot-panel" aria-label="${card.label} ${action(card.direction)} ${changeLabel}">
       ${recentlyChanged ? `<mark class="pair-decision-change-badge">判断変更 ${escapeMarkup(changeLabel)}</mark>` : ""}
-      <div class="pair-decision-symbol"><span>${card.label}</span><small>現在予測</small></div>
-      <div class="pair-decision-action"><b>${arrow(card.direction)}</b><strong>${action(card.direction)}</strong><em>${card.direction === "flat" ? "方向確率 --" : `短期方向 ${Math.round(card.confidence)}%`}</em></div>
+      <div class="pair-decision-symbol"><span>${card.label}</span><small>予測方向（発注判断ではない）</small></div>
+      <div class="pair-decision-action"><b>${arrow(card.direction)}</b><strong>${action(card.direction)}</strong><em>モデル判断・勝率ではありません</em></div>
+      ${card.id === "eurusd" ? `<div class="pair-decision-score"><span>予測品質: ${escapeMarkup(card.qualityDecision)}（仮想取引は別条件）</span></div>` : ""}
       <div class="pair-decision-price"><span>現在値</span><strong>${price(card.current, card.digits)}</strong><small>10分 ${price(card.predicted, card.digits)} / ${delta >= 0 ? "+" : ""}${delta.toFixed(4)}%</small></div>
       <div class="pair-decision-horizons"><span>4時間 <b>${horizon(card.h4)}</b></span><span>日足 <b>${horizon(card.d1)}</b></span></div>
       <div class="pair-decision-explanation"><span>判断理由</span><strong>${escapeMarkup(card.reason)}</strong></div>
+      <div class="pair-trend-flow"><b>確定足の流れ（参考・単一価格源）</b><span>${["m5", "m15", "h1", "h4"].map((key) => { const frame = findFrame(card.flowFrames, key); const flow = currentTrendFlow(frame); const labels = { m5: "5分", m15: "15分", h1: "1時間", h4: "4時間" }; return `${labels[key]}: ${flow ? `${flow.label}（${formatCandleTime(flow.closedAt)}確定）` : "判定不可"}`; }).map(escapeMarkup).join(" / ")}</span><span>${escapeMarkup(flowRelation)} / 過去12本の構造比較。取引判断には未採用</span></div>
       ${persistentChangeLabel ? `<div class="pair-decision-change-history">${escapeMarkup(persistentChangeLabel)}</div>` : ""}
       <div class="pair-decision-score"><span>${escapeMarkup(performanceLabel(card.id, "15m"))}</span><span>${escapeMarkup(performanceLabel(card.id, "60m"))}</span></div>
+      <div class="pair-decision-score"><span>${escapeMarkup(paperOutcomeLabel(snapshot, card.id))}</span></div>
       <div class="pair-decision-freshness"><i></i><span>${Number.isFinite(Number(card.fresh)) ? `価格 ${Math.round(Number(card.fresh))}秒前` : "価格時刻を確認中"}</span><b data-decision-valid-until="${validUntil}"></b></div>
     </a>`;
   }).join("");
   updatePairDecisionValidityCountdowns();
   if (pairDecisionUpdatedEl) {
-    pairDecisionUpdatedEl.textContent = `分析 ${new Date(snapshot?.generatedAt || Date.now()).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+    const analysisAt = formatCandleTime(snapshot?.generatedAt);
+    const revaluedAt = snapshot?.minuteRevaluation?.at ? ` / 価格反映 ${formatCandleTime(snapshot.minuteRevaluation.at)}` : "";
+    pairDecisionUpdatedEl.textContent = `分析 ${analysisAt}${revaluedAt}`;
   }
 }
 
@@ -3006,7 +3245,7 @@ function renderChampionChallenger(data) {
       <div><span>昇格審査</span><strong>${eligible.samples || 0}件</strong><small>必要 ${data.minimumSamples || 120}件</small></div>
       <div><span>候補方向評価</span><strong>${eligible.directionSamples || 0}件</strong><small>必要 ${data.minimumDirectionSamples || 80}件 / 現行 ${eligible.championDirectionSamples || 0}件</small></div>
       <div><span>旧形式除外</span><strong>${data.dataAudit?.excludedLegacyRows || 0}件</strong><small>参考値のみ</small></div>
-      <div><span>期限時刻ずれ除外</span><strong>${data.dataAudit?.excludedMisalignedRows || 0}件</strong><small>期限±3分を超過</small></div>
+      <div><span>期限時刻ずれ除外</span><strong>${data.dataAudit?.excludedMisalignedRows || 0}件</strong><small>期限前または期限後3分を超過</small></div>
       <div><span>重複除外</span><strong>${overlappingRowsRemoved || 0}件</strong><small>10分予測の期間重複</small></div>
       <div><span>長期評価履歴</span><strong>${data.dataAudit?.archivedRows || 0}件</strong><small>非重複・最大900件</small></div>
       <div><span>確定済み総数</span><strong>${data.dataAudit?.finalizedRows || 0}件</strong><small>${data.dataAudit?.exclusionReason || "監査済み"}</small></div>
@@ -3221,7 +3460,7 @@ function renderYenCrossCommand(command) {
       <div><article><span>短期</span><strong>${command.timeframeConsensus.short.direction === "up" ? "円安" : command.timeframeConsensus.short.direction === "down" ? "円高" : "中立"}</strong><small>合意 ${Math.round(Number(command.timeframeConsensus.short.agreement || 0) * 100)}%</small></article><article><span>スイング</span><strong>${command.timeframeConsensus.swing.direction === "up" ? "円安" : command.timeframeConsensus.swing.direction === "down" ? "円高" : "中立"}</strong><small>4時間・日足・週足・月足 / 合意 ${Math.round(Number(command.timeframeConsensus.swing.agreement || 0) * 100)}%</small></article><article><span>前向き標本</span><strong>${command.timeframeConsensus.forwardSamples}件</strong><small>価格照合後だけ採用</small></article></div>
       <p>${command.timeframeConsensus.blockers?.length ? command.timeframeConsensus.blockers.join(" / ") : command.timeframeConsensus.method}</p>
     </div>` : ""}
-    ${command.timeframePerformance ? `<div class="yen-cross-ledger"><header><div><span>USD/JPY 時間足別成績台帳</span><strong>${command.timeframePerformance.completed}件照合 / ${command.timeframePerformance.pending}件待ち</strong></div><b>${command.timeframePerformance.overallHitRate == null ? "蓄積中" : `方向一致 ${Math.round(command.timeframePerformance.overallHitRate * 100)}%`}</b></header><div>${(command.timeframePerformance.rows || []).map((row) => `<article><span>${row.label}</span><strong>${row.hitRate == null ? "--" : `${Math.round(row.hitRate * 100)}%`}</strong><small>${row.samples}/30件・平均誤差 ${row.maePct == null ? "--" : `${Number(row.maePct).toFixed(3)}%`}</small><em>${row.eligibleForWeighting ? "重み審査可能" : "固定重み"}</em></article>`).join("") || `<article><span>照合結果</span><strong>蓄積開始</strong><small>期限到来後の実価格で評価します</small><em>未来情報遮断</em></article>`}</div><p>${command.timeframePerformance.weightingRule}</p></div>` : ""}
+    ${command.timeframePerformance ? `<div class="yen-cross-ledger"><header><div><span>USD/JPY 時間足別成績台帳</span><strong>${command.timeframePerformance.completed}件照合 / ${command.timeframePerformance.pending}件待ち</strong></div><b>${command.timeframePerformance.overallHitRate == null ? "蓄積中" : `方向一致 ${Math.round(command.timeframePerformance.overallHitRate * 100)}%`}</b></header><div>${(command.timeframePerformance.rows || []).map((row) => `<article><span>${row.label}</span><strong>${row.hitRate == null ? "--" : `${Math.round(row.hitRate * 100)}%`}</strong><small>${row.samples}/30件・平均誤差 ${row.maePct == null ? "--" : `${Number(row.maePct).toFixed(3)}%`}</small><small>${formatTimeframeCalibrationShadow(row.shadowCalibration)}</small><em>${row.eligibleForWeighting ? "重み審査可能" : "固定重み"}</em></article>`).join("") || `<article><span>照合結果</span><strong>蓄積開始</strong><small>期限到来後の実価格で評価します</small><em>未来情報遮断</em></article>`}</div><p>${command.timeframePerformance.weightingRule}</p></div>` : ""}
     ${command.directionChallenger ? `<div class="yen-cross-challenger ${command.directionChallenger.promotable ? "promotable" : "shadow"}">
       <header><div><span>USD/JPY 候補モデル検証</span><strong>${command.directionChallenger.candidateLabel}</strong></div><b>${command.directionChallenger.status}</b></header>
       <div>
@@ -3230,15 +3469,16 @@ function renderYenCrossCommand(command) {
         <article><span>本番昇格</span><strong>${command.directionChallenger.promotable ? "候補条件達成" : "未採用"}</strong><small>改善差 ${Number(command.directionChallenger.validation.improvementPct || 0) >= 0 ? "+" : ""}${Number(command.directionChallenger.validation.improvementPct || 0).toFixed(3)}%</small></article>
       </div><p>${command.directionChallenger.safeguard}</p>
     </div>` : ""}
-    ${command.featureChallenger ? `<div class="yen-cross-challenger feature ${command.featureChallenger.promotable ? "promotable" : "shadow"}">
-      <header><div><span>USD/JPY ${command.featureChallenger.featureKeys?.length || 16}特徴量AI影モデル</span><strong>${command.featureChallenger.status}</strong></div><b>${command.featureChallenger.promotable ? "昇格候補" : "本番未採用"}</b></header>
+    ${command.featureChallenger ? `<div class="yen-cross-challenger feature shadow">
+      <header><div><span>USD/JPY ${command.featureChallenger.featureKeys?.length || 16}特徴量AI影モデル</span><strong>${command.featureChallenger.validationPolicyVersion === "deadline-availability-v2" ? command.featureChallenger.status : "旧検証・再計算待ち"}</strong></div><b>本番未採用</b></header>
       <div>
-        <article><span>独立学習</span><strong>${command.featureChallenger.train?.samples ?? command.featureChallenger.trainSamples ?? 0}件</strong><small>重複10分予測を除外</small></article>
-        <article><span>ウォークフォワード</span><strong>${command.featureChallenger.validation?.trades ?? 0}/${command.featureChallenger.validation?.minimumTrades ?? 30}取引</strong><small>${command.featureChallenger.validation?.folds ?? 0}回 / 方向一致 ${command.featureChallenger.validation?.hitRate == null ? "--" : `${Math.round(command.featureChallenger.validation.hitRate * 100)}%`}</small></article>
-        <article><span>コスト後改善</span><strong>${command.featureChallenger.validation?.improvementPct == null ? "--" : `${Number(command.featureChallenger.validation.improvementPct) >= 0 ? "+" : ""}${Number(command.featureChallenger.validation.improvementPct).toFixed(3)}%`}</strong><small>主特徴 ${command.featureChallenger.importance?.[0]?.key || "蓄積中"}</small></article>
+        <article><span>非重複学習</span><strong>${command.featureChallenger.train?.samples ?? command.featureChallenger.trainSamples ?? 0}件</strong><small>期限後の価格・結果判明時刻を確認</small></article>
+        <article><span>過去ウォークフォワード</span><strong>${command.featureChallenger.validation?.trades ?? 0}/${command.featureChallenger.validation?.minimumTrades ?? 30}取引</strong><small>${command.featureChallenger.validation?.folds ?? 0}回 / 方向一致 ${command.featureChallenger.validation?.hitRate == null ? "--" : `${Math.round(command.featureChallenger.validation.hitRate * 100)}%`}</small></article>
+        <article><span>コスト後・参考比較</span><strong>候補 ${command.featureChallenger.validation?.candidateReturnPct == null ? "--" : `${Number(command.featureChallenger.validation.candidateReturnPct).toFixed(3)}%`}</strong><small>基準 ${command.featureChallenger.validation?.baselineReturnPct == null ? "--" : `${Number(command.featureChallenger.validation.baselineReturnPct).toFixed(3)}%`} / 各機会の騰落率の合計</small></article>
+        <article><span>後半30%の参考比較</span><strong>${command.featureChallenger.fixedHoldout?.trades ?? 0}取引</strong><small>繰り返し閲覧済み・前向き実績ではない</small></article>
         <article><span>現在の影判断</span><strong>${command.featureChallenger.liveShadow?.officialDirection || "WAIT"}</strong><small>生 ${command.featureChallenger.liveShadow ? `${Math.round(command.featureChallenger.liveShadow.rawProbability * 100)}%` : "--"} / 補正 ${command.featureChallenger.liveShadow ? `${Math.round(command.featureChallenger.liveShadow.calibratedProbability * 100)}%` : "--"}</small></article>
         <article><span>利用可能要因</span><strong>${command.featureChallenger.featureDiagnostics?.usable ?? 0}/${command.featureChallenger.featureDiagnostics?.total ?? command.featureChallenger.featureKeys?.length ?? 0}</strong><small>未稼働 ${command.featureChallenger.featureDiagnostics?.unavailable?.length || 0}要因</small></article>
-      </div><p>${command.featureChallenger.safeguard}</p>
+      </div><p>${command.featureChallenger.validationPolicyVersion === "deadline-availability-v2" ? command.featureChallenger.safeguard : "旧結果は時刻の再確認待ち。前向き実績・公式昇格には使用しません。"}</p>
     </div>` : ""}
     ${command.executionHorizonGate ? `<div class="yen-cross-challenger ${command.executionHorizonGate.accepted ? "promotable" : "shadow"}">
       <header><div><span>USD/JPY H4マクロ方向 × M15価格確認</span><strong>${command.executionHorizonGate.status}</strong></div><b>${command.executionHorizonGate.accepted ? "公式候補" : "影検証"}</b></header>
@@ -3516,7 +3756,11 @@ function renderMobileLearningStatus(snapshot) {
 
 function renderOperationalReadiness(snapshot) {
   if (!operationalReadinessBarEl || !operationalReadinessStateEl || !operationalReadinessChecksEl) return;
-  const generatedAt = Date.parse(snapshot?.generatedAt || "");
+  const generatedAt = Math.max(
+    Date.parse(snapshot?.generatedAt || "") || 0,
+    Date.parse(snapshot?.marketDataAt || "") || 0,
+    Date.parse(snapshot?.minuteRevaluation?.at || "") || 0
+  );
   const ageSeconds = Number.isFinite(generatedAt)
     ? Math.max(0, Math.round((Date.now() - generatedAt) / 1000))
     : Infinity;
@@ -3589,7 +3833,7 @@ function renderMapLiveFx(markets, generatedAt = new Date().toISOString()) {
     const direction = Number.isFinite(previous) && value !== previous ? value > previous ? "up" : "down" : "flat";
     if (Number.isFinite(value)) previousLiveFxValues.set(market.id, value);
     const decimals = Number(market.decimals ?? (market.id === "eurusd" ? 5 : 3));
-    const freshness = Number(market.freshnessSeconds ?? market.quote?.freshnessSeconds ?? Infinity);
+    const freshness = actualAgeSeconds(market.at || market.quote?.at, market.freshnessSeconds ?? market.quote?.freshnessSeconds);
     const fresh = !market.synthetic && !market.quote?.synthetic && freshness <= 180;
     allFresh &&= fresh;
     const sourceCount = Number(market.sourceCount ?? market.quote?.trustedSourceCount ?? market.quote?.sourceCount ?? 0);
@@ -3604,28 +3848,11 @@ function renderMapLiveFx(markets, generatedAt = new Date().toISOString()) {
 
 function mergeLiveFxIntoSnapshot(rows = [], generatedAt = new Date().toISOString(), payload = {}) {
   if (!latestSnapshot || !rows.length) return;
-  const liveById = new Map(rows.map((row) => [row.id, row]));
-  latestSnapshot.markets = (latestSnapshot.markets || []).map((market) => {
-    const live = liveById.get(market.id);
-    if (!live) return market;
-    return {
-      ...market,
-      quote: {
-        ...(market.quote || {}),
-        value: Number(live.value),
-        change24h: Number(live.changePct || 0),
-        provider: live.provider,
-        at: live.at,
-        freshnessSeconds: Number(live.freshnessSeconds),
-        synthetic: live.synthetic === true,
-        consensusVerified: live.consensusVerified === true,
-        trustedSourceCount: Number(live.sourceCount || 0),
-        sourceCount: Number(live.sourceCount || 0),
-        sourceDeviationPct: Number(live.sourceDeviationPct || 0)
-      }
-    };
-  });
-  if (Array.isArray(payload.revaluedMarkets)) latestSnapshot.markets = payload.revaluedMarkets;
+  latestSnapshot.markets = mergeRevaluedMarkets(
+    latestSnapshot.markets || [],
+    Array.isArray(payload.revaluedMarkets) ? payload.revaluedMarkets : latestSnapshot.markets || [],
+    rows
+  );
   if (Array.isArray(payload.eurusdTimeframes)) latestSnapshot.eurusdTimeframes = payload.eurusdTimeframes;
   if (payload.minuteRevaluation) latestSnapshot.minuteRevaluation = payload.minuteRevaluation;
   latestSnapshot.marketDataAt = generatedAt || latestSnapshot.marketDataAt;
@@ -3634,14 +3861,16 @@ function mergeLiveFxIntoSnapshot(rows = [], generatedAt = new Date().toISOString
 async function refreshMapLiveFx() {
   if (!mapLiveFxEl || document.hidden) return;
   try {
-    const response = await fetch("/api/live-fx", {
+    const { response, payload } = await fetchJson("/api/live-fx", {
       cache: "no-cache",
       headers: liveFxEtag ? { "If-None-Match": liveFxEtag } : {}
-    });
-    if (response.status === 304) return;
-    if (!response.ok) throw new Error(`API ${response.status}`);
+    }, 20_000);
+    if (response.status === 304) {
+      renderMapLiveFx([...latestLiveFxById.values()]);
+      refreshLivePivotCandles([...latestLiveFxById.values()]);
+      return;
+    }
     liveFxEtag = response.headers.get("etag") || liveFxEtag;
-    const payload = await response.json();
     const liveMarkets = payload.markets || [];
     renderMapLiveFx(liveMarkets, payload.generatedAt);
     mergeLiveFxIntoSnapshot(liveMarkets, payload.generatedAt, payload);
@@ -3649,14 +3878,19 @@ async function refreshMapLiveFx() {
     if (latestSnapshot) {
       renderPairDecisionDeck(latestSnapshot);
       renderMarketTape(latestSnapshot.markets);
+      renderMarkets(latestSnapshot.markets);
+      renderOperationalReadiness(latestSnapshot);
       renderForecastNewsflash(
         latestSnapshot.eurusdTimeframes || [],
         latestSnapshot.markets.find((market) => market.id === "eurusd")
       );
       renderEurusdTimeframes(latestSnapshot.eurusdTimeframes || [], latestSnapshot.eurusdTimeframeLearning, latestSnapshot.dailyForecastReference);
     }
+    if ((payload.paperTrading || latestSnapshot?.paperTrading) && (payload.paperTrading || payload.shadowPaperTrading)) {
+      renderPaperTrading(payload.paperTrading || latestSnapshot?.paperTrading, payload.shadowPaperTrading || latestSnapshot?.shadowPaperTrading, latestSnapshot?.paperTradingComparison, latestSnapshot?.weekendReplay);
+      if (latestSnapshot && payload.shadowPaperTrading) latestSnapshot.shadowPaperTrading = payload.shadowPaperTrading;
+    }
     if (payload.paperTrading) {
-      renderPaperTrading(payload.paperTrading, latestSnapshot?.shadowPaperTrading, latestSnapshot?.paperTradingComparison, latestSnapshot?.weekendReplay);
       renderTradeOpportunityMonitor(payload.paperTrading, latestSnapshot?.probabilitySimulation, latestSnapshot?.yenCrossCommand, latestSnapshot?.threeWayGate);
       renderPivotTradeOverlays(payload.paperTrading, latestSnapshot?.markets || liveMarkets);
       if (latestSnapshot) latestSnapshot.paperTrading = payload.paperTrading;
@@ -3668,6 +3902,12 @@ async function refreshMapLiveFx() {
   } catch {
     mapLiveFxEl.classList.add("stale");
     mapLiveFxTimeEl.textContent = "再接続中";
+    refreshLivePivotCandles([...latestLiveFxById.values()]);
+  } finally {
+    refreshOneMinutePivotCharts().catch(() => {
+      if (eurusdPivotStatusEl) eurusdPivotStatusEl.title = "1分足の取得に失敗しました。自動で再試行します。";
+      if (usdjpyPivotStatusEl) usdjpyPivotStatusEl.title = "1分足の取得に失敗しました。自動で再試行します。";
+    });
   }
 }
 
@@ -3752,7 +3992,7 @@ function renderWorldPulse(pulse, briefing) {
     ["学習スコア", `${pulse.learningScore}%`, "過去照合"]
   ];
   pulseGridEl.innerHTML = rows.map(([label, value, detail]) => `
-    <div class="pulse-tile">
+    <div class="pulse-tile${label === "学習スコア" ? " learning-score-tile" : ""}">
       <span>${label}</span>
       <strong>${value}</strong>
       <small>${detail}</small>
@@ -4035,10 +4275,15 @@ function updateNotificationUi() {
 
 function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = false } = {}) {
   if (!panelEl || !statusEl || !containerEl || !data) return;
+  const paperViewHidden = panelEl.classList.contains("paper-view-hidden");
+  const researchState = Object.fromEntries([...containerEl.querySelectorAll("details[data-paper-research]")].map((item) => [item.dataset.paperResearch, item.open]));
+  const researchOpen = (name) => !document.body.classList.contains("simplified-display") || researchState[name] === true ? " open" : "";
   const tone = data.position ? (data.position.side === "long" ? "up" : "down") : data.riskLocked ? "locked" : "waiting";
   const yen = (value) => `${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
   const signedYen = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${yen(value)}`;
-  const validationTierLabel = (tier, riskPct = 0.1) => tier === "fundamental"
+  const validationTierLabel = (tier, riskPct = 0.1) => tier === "observation"
+    ? `1ロット観測専用（公式評価外・最大60分・リスク${Number(riskPct).toFixed(2)}%）`
+    : tier === "fundamental"
     ? `重要材料検証 ${riskPct}%`
     : tier === "counterfactual_release"
       ? `選択解除・1ロット試験 ${riskPct}%`
@@ -4063,6 +4308,7 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     return hours ? `${hours}時間${rest ? `${rest}分` : ""}` : `${rest}分`;
   };
   panelEl.className = `paper-trading-wrap ${shadow ? "shadow" : "official"} ${tone}`;
+  panelEl.classList.toggle("paper-view-hidden", paperViewHidden);
   statusEl.textContent = `${data.action || "監視中"} / 総資産 ${yen(data.equity)}`;
   const position = data.position;
   const pairLabel = position?.pairLabel || data.currentPairLabel || "EUR/USD";
@@ -4091,11 +4337,22 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <span>稼働予測モデル <strong>${data.activeModelLabel || data.activeModelVersion || data.currentSignal?.modelId || "確認中"}</strong></span>
       <span class="auto-upgrade">${shadow ? "品質ゲート外も検証" : `昇格判定 ${data.promotionDecision || "現行維持"}`}</span>
     </div>
+    ${!shadow && data.prospectTheoryGuard ? `<div class="paper-regime-guard ${data.prospectTheoryGuard.active ? "waiting" : "stable"}">
+      <div><span>プロスペクト理論・行動バイアス制御</span><strong>${data.prospectTheoryGuard.label}</strong></div>
+      <small>直近${data.prospectTheoryGuard.recentSamples}件 ${signedYen(data.prospectTheoryGuard.recentNetPnlJpy)} / 連敗 ${data.prospectTheoryGuard.consecutiveLosses}回 / 新規ロット倍率 ${Math.round(Number(data.prospectTheoryGuard.riskMultiplier || 1) * 100)}% / 損失回避係数 ${Number(data.prospectTheoryGuard.lossAversionCoefficient || 2.25).toFixed(2)}</small>
+      <small>方向予測には加点しません。取り返し増量、損切り拡大、ルール外の早期利確を禁止します。</small>
+    </div>` : ""}
     ${shadow && data.directionProbabilityCalibration ? `<div class="paper-exit-strategy">
       <div><span>モデル出力（15分方向）</span><strong>${Math.round(Number(data.directionProbabilityCalibration.rawProbability || 0.5) * 100)}%</strong><small>候補抽出用の元確率</small></div>
       <div><span>実績校正済み方向確率</span><strong>${Math.round(Number(data.directionProbabilityCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>${data.directionProbabilityCalibration.label}</small></div>
       <div><span>実測方向一致率</span><strong>${data.directionProbabilityCalibration.hitRate == null ? "蓄積中" : `${Math.round(Number(data.directionProbabilityCalibration.hitRate) * 100)}%`}</strong><small>${data.directionProbabilityCalibration.samples || 0}件 / ${data.directionProbabilityCalibration.scope}</small></div>
       <div><span>時間軸の区別</span><strong>15分方向 / 最大4時間損益</strong><small>${data.directionProbabilityCalibration.note}</small></div>
+    </div>` : ""}
+    ${shadow && data.observation ? `<div class="paper-regime-guard ${data.observation.accepted ? "stable" : "waiting"}">
+      <div><span>取引数を増やす1ロット観測</span><strong>${data.observation.label}</strong></div>
+      <small>買い・売り確率差 ${(Number(data.observation.directionalGap || 0) * 100).toFixed(1)}pt / 校正確率 ${Math.round(Number(data.observation.calibratedProbability || 0.5) * 100)}% / 最大60分</small>
+      <small>${data.observation.blockers?.length ? data.observation.blockers.join(" / ") : data.observation.note}</small>
+      <small>決済済み ${data.stats?.observationTrades || 0}件 / 観測損益 ${signedYen(data.stats?.observationNetPnl || 0)} / 公式成績・昇格判定には不算入</small>
     </div>` : ""}
     ${!shadow && data.tradeProbabilityCalibration ? `<div class="paper-exit-strategy">
       <div><span>公式取引確率（4時間）</span><strong>${Math.round(Number(data.tradeProbabilityCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>10分方向の元確率 ${Math.round(Number(data.tradeProbabilityCalibration.rawProbability || 0.5) * 100)}%</small></div>
@@ -4116,6 +4373,14 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       </div>
       <small>${gate.reasons?.length ? gate.reasons.join(" / ") : "全条件を通過"}</small>
     </div>`; })() : ""}
+    ${!shadow && data.stopReversalLab ? `<details class="paper-research-details" data-paper-research="reversal"${researchOpen("reversal")}><summary>損切り後の途転比較を表示</summary><div class="paper-entry-policies">
+      <div class="paper-entry-policy-head"><span>損切り後の途転比較</span><strong>${escapeMarkup(data.stopReversalLab.mode)}</strong></div>
+      <div class="paper-entry-policy-grid">
+        <div><span>見送り</span><strong>0.0000%</strong><small>損切り後の追加損益なし</small></div>
+        ${[["即時途転", data.stopReversalLab.immediate], ["5分確認後", data.stopReversalLab.confirmed]].map(([label, row]) => `<div><span>${label}</span><strong>${row?.meanReturnPct == null ? "--" : `${Number(row.meanReturnPct) >= 0 ? "+" : ""}${Number(row.meanReturnPct).toFixed(4)}%`}</strong><small>共通 ${row?.samples || 0}件 / 発動 ${row?.entered || 0}件 / 黒字 ${row?.wins || 0}件</small></div>`).join("")}
+      </div>
+      <small>完了 ${data.stopReversalLab.samples}件 / 追跡中 ${data.stopReversalLab.pending}件 / 時刻不備 ${data.stopReversalLab.invalid}件。${escapeMarkup(data.stopReversalLab.note)}</small>
+    </div></details>` : ""}
     ${!shadow && data.exitAudit ? `<div class="paper-exit-strategy">
       <div><span>実際の取引スタイル</span><strong>${data.exitAudit.style}</strong><small>${data.exitAudit.decisionStructure} / 最大4時間</small></div>
       <div><span>実保有時間</span><strong>${durationLabel(data.exitAudit.averageHoldingMinutes)} 平均</strong><small>中央値 ${durationLabel(data.exitAudit.medianHoldingMinutes)} / 最短 ${durationLabel(data.exitAudit.shortestHoldingMinutes)} / 最長 ${durationLabel(data.exitAudit.longestHoldingMinutes)}</small></div>
@@ -4135,8 +4400,9 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     </div>` : ""}
     ${shadow && data.entryTimingLab ? `<div class="paper-entry-policies">
       <div class="paper-entry-policy-head"><span>エントリー時刻・前向き比較</span><strong>${data.entryTimingLab.decision}</strong></div>
-      <div class="paper-entry-policy-lock"><span>同一シグナル比較</span><small>即時・5分待機・15分待機を約定後15分の実価格とコストで照合 / 待機 ${data.entryTimingLab.pendingSamples || 0}・時刻ずれ無効 ${data.entryTimingLab.invalidSamples || 0}</small></div>
-      <div class="paper-entry-policy-grid">${(data.entryTimingLab.policies || []).map((row) => `<div class="${row.key === data.entryTimingLab.activePolicy ? "candidate" : ""}"><span>${row.label}</span><strong>${row.samples}/${data.entryTimingLab.minimumSamples}組</strong><small>勝率 ${row.hitRate == null ? "--" : `${Math.round(row.hitRate * 100)}%`} / 平均 ${row.averageNetMovePct == null ? "--" : `${Number(row.averageNetMovePct) >= 0 ? "+" : ""}${Number(row.averageNetMovePct).toFixed(4)}%`}</small><small class="policy-confidence ${row.statisticallyBetter ? "confirmed" : "locked"}">改善95%CI ${row.improvement95?.low == null ? "--" : `${Number(row.improvement95.low) >= 0 ? "+" : ""}${Number(row.improvement95.low).toFixed(4)}%`} ～ ${row.improvement95?.high == null ? "--" : `${Number(row.improvement95.high) >= 0 ? "+" : ""}${Number(row.improvement95.high).toFixed(4)}%`}</small></div>`).join("")}</div>
+      <div class="paper-entry-policy-lock"><span>同一シグナル比較</span><small>5方式共通・期間非重複 / 選定 ${data.entryTimingLab.trainingSamples ?? "--"}組・検証 ${data.entryTimingLab.holdoutSamples ?? "--"}組 / 待機 ${data.entryTimingLab.pendingSamples || 0}・時刻ずれ無効 ${data.entryTimingLab.invalidSamples || 0} / 価格時刻のない旧記録は参考のみ</small></div>
+      ${data.entryTimingLab.diagnosis ? `<div class="paper-entry-policy-lock"><span>損失原因の自動診断</span><strong>${data.entryTimingLab.diagnosis.label}</strong><small>${data.entryTimingLab.diagnosis.detail}</small></div>` : ""}
+      <div class="paper-entry-policy-grid">${(data.entryTimingLab.policies || []).map((row) => `<div class="${row.key === data.entryTimingLab.candidatePolicy ? "candidate" : ""}"><span>${row.label}</span><strong>参考 ${row.samples}件</strong><small>${row.style === "swing" ? "スイング" : "スキャルピング"} / 保有${row.holdingMinutes}分 / 勝率 ${row.hitRate == null ? "--" : `${Math.round(row.hitRate * 100)}%`} / 平均 ${row.averageNetMovePct == null ? "--" : `${Number(row.averageNetMovePct) >= 0 ? "+" : ""}${Number(row.averageNetMovePct).toFixed(4)}%`}</small><small class="policy-confidence ${row.statisticallyBetter ? "confirmed" : "locked"}">後半の非重複比較 ${data.entryTimingLab.holdoutSamples ?? "--"}組・改善95%CI ${row.improvement95?.low == null ? "--" : `${Number(row.improvement95.low) >= 0 ? "+" : ""}${Number(row.improvement95.low).toFixed(4)}%`} ～ ${row.improvement95?.high == null ? "--" : `${Number(row.improvement95.high) >= 0 ? "+" : ""}${Number(row.improvement95.high).toFixed(4)}%`}</small></div>`).join("")}</div>
     </div>` : ""}
     ${shadow && data.entryQualityGuard ? `<div class="paper-regime-guard ${data.entryQualityGuard.accepted ? "stable" : "waiting"}">
       <div><span>モデル世代別エントリー監査</span><strong>${data.entryQualityGuard.label}</strong></div>
@@ -4174,12 +4440,12 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>累計退避効果</span><strong class="${Number(data.emergencyExitValidation.netBenefitJpy || 0) >= 0 ? "up" : "down"}">${signedYen(data.emergencyExitValidation.netBenefitJpy)}</strong><small>平均 ${data.emergencyExitValidation.averageBenefitJpy == null ? "--" : signedYen(data.emergencyExitValidation.averageBenefitJpy)}</small></div>
       <div><span>統計確認</span><strong>${data.emergencyExitValidation.verifiedBeneficial ? "有効性確認" : "自動昇格なし"}</strong><small>95%下限 ${data.emergencyExitValidation.lower95Jpy == null ? "--" : signedYen(data.emergencyExitValidation.lower95Jpy)}</small></div>
     </div>` : ""}
-    ${!shadow && data.stopOptimization ? `<div class="paper-exit-strategy">
+    ${!shadow && data.stopOptimization ? `<details class="paper-research-details" data-paper-research="stop"${researchOpen("stop")}><summary>局面別の損切り検証を表示</summary><div class="paper-exit-strategy">
       <div><span>局面別 MAE/MFE 損切り検証</span><strong>${data.stopOptimization.decision}</strong><small>${data.stopOptimization.scope} / 検証済み全体 ${data.stopOptimization.verifiedTrades}件</small></div>
       <div><span>現在中央値 / 影候補</span><strong>${data.stopOptimization.currentStopMedianPct == null ? "--" : `${Number(data.stopOptimization.currentStopMedianPct).toFixed(3)}%`} / ${data.stopOptimization.candidateStopPct == null ? "--" : `${Number(data.stopOptimization.candidateStopPct).toFixed(3)}%`}</strong><small>自動採用なし</small></div>
       <div><span>勝ち取引 MAE 85%点</span><strong>${data.stopOptimization.winningMaeP85 == null ? "--" : `${Number(data.stopOptimization.winningMaeP85).toFixed(3)}%`}</strong><small>勝ち ${data.stopOptimization.wins}件 / 負け ${data.stopOptimization.losses}件</small></div>
       <div><span>利益方向の伸び</span><strong>${data.stopOptimization.winningMfeMedian == null ? "--" : `${Number(data.stopOptimization.winningMfeMedian).toFixed(3)}%`}</strong><small>負け取引MFE 85%点 ${data.stopOptimization.losingMfeP85 == null ? "--" : `${Number(data.stopOptimization.losingMfeP85).toFixed(3)}%`}</small></div>
-    </div>` : ""}
+    </div></details>` : ""}
     ${!shadow && data.shadowRecoveryGate ? `<div class="paper-regime-guard ${data.shadowRecoveryGate.accepted ? "stable" : "waiting"}">
       <div><span>公式口座・回復昇格ゲート</span><strong>${data.shadowRecoveryGate.label}</strong></div>
       <small>学習口座の直近 ${data.shadowRecoveryGate.samples}/${data.shadowRecoveryGate.minimumSamples}件 / 期待値 ${data.shadowRecoveryGate.expectancyJpy == null ? "--" : signedYen(data.shadowRecoveryGate.expectancyJpy)} / PF ${data.shadowRecoveryGate.profitFactor == null ? "--" : Number(data.shadowRecoveryGate.profitFactor).toFixed(2)} / 95%下限 ${data.shadowRecoveryGate.expectancy95?.low == null ? "--" : signedYen(data.shadowRecoveryGate.expectancy95.low)}</small>
@@ -4197,8 +4463,9 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       <div><span>現在の判断</span><strong>${data.action || "監視中"}</strong><small>${data.actionDetail || "品質ゲートを監視しています。"}</small></div>
       ${position ? `
         <div><span>保有銘柄・方向</span><strong>${position.pairLabel || "EUR/USD"} ${position.side === "long" ? "買い / LONG" : "売り / SHORT"}</strong><small>${validationTierLabel(position.validationTier, position.riskPerTradePct ?? 0.1)} / 想定元本 ${yen(position.notionalJpy)}</small></div>
+        <div><span>取引スタイル</span><strong>${position.tradeStyleLabel || (position.tradeStyle === "swing" ? "スイング" : "スキャルピング")}</strong><small>${position.intendedHorizon || (position.tradeStyle === "swing" ? "数時間〜数日" : "数分〜60分目安")} / 固定時間では決済しません</small></div>
         <div><span>約定・現在値</span><strong>${Number(position.entryPrice).toFixed(priceDigits)} → ${Number(position.currentPrice).toFixed(priceDigits)}</strong><small>${new Date(position.openedAt).toLocaleString("ja-JP")}開始 / 現在 ${durationLabel(Math.max(0, Math.floor((Date.now() - Date.parse(position.openedAt)) / 60000)))}</small></div>
-        <div><span>損切り・利確</span><strong>${Number(position.stopPrice).toFixed(priceDigits)} / ${Number(position.targetPrice).toFixed(priceDigits)}</strong><small>最大保有 ${position.maxHoldingMinutes}分</small></div>
+        <div><span>損切り・利確</span><strong>${Number(position.stopPrice).toFixed(priceDigits)} / ${Number(position.targetPrice).toFixed(priceDigits)}</strong><small>${Number(position.maxHoldingMinutes) > 0 ? `最大保有 ${position.maxHoldingMinutes}分` : "時間制限なし / 1R損切り・2R利確"}</small></div>
         <div><span>損失上限（コスト込）</span><strong>${yen(estimatedMaxLossJpy)}</strong><small>予算 ${yen(position.riskBudget)} / ${Number(position.lossAndCostPct || position.stopPct || 0).toFixed(3)}%</small></div>
         ${!shadow ? `<div class="paper-emergency ${emergency?.status || "standby"}"><span>急変退避</span><strong>${emergency?.label || "監視準備"}</strong><small>${emergency?.reason || "照合済み価格を3点確認して発動"}</small></div>` : ""}
         ${shadow ? `<div><span>現在のR・保有時間</span><strong class="${Number(position.currentR || 0) >= 0 ? "up" : "down"}">${position.currentR == null ? "--" : `${Number(position.currentR) >= 0 ? "+" : ""}${Number(position.currentR).toFixed(2)}R`} / ${position.holdingMinutes || 0}分</strong><small>含み損益 ${signedYen(position.unrealizedPnl)}</small></div>
@@ -4206,9 +4473,10 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
       ` : `<div><span>ポジション</span><strong>保有なし</strong><small>${shadow ? "次の確定15分シグナルを待機" : "品質基準を通過するまで注文しません"}</small></div>`}
     </div>
     ${snapshot ? `<div class="paper-entry-snapshot"><span>固定保存したエントリー情報</span><strong>${snapshot.modelLabel || snapshot.modelId || "--"} / ${snapshot.signalDirection === "up" || snapshot.direction === "up" ? "上" : "下"} / ${Math.round(Number(snapshot.signalProbability ?? snapshot.probability ?? 0) * 100)}%</strong><small>${validationTierLabel(snapshot.validationTier, snapshot.riskPerTradePct ?? 0.1)} ・ 局面 ${snapshot.regime?.label || snapshot.regime?.key || "未分類"} ・ ゲート ${snapshot.validationTier === "fundamental" || snapshot.validationTier === "counterfactual_release" ? snapshot.qualityGateReason : snapshot.qualityGateAccepted ? "通過" : `不合格: ${snapshot.qualityGateReason || "基準未達"}`} ・ ドリフト ${snapshot.conformalDrift?.label || snapshot.conformalDrift?.state || "なし"}</small></div>` : ""}
-    ${!shadow && (data.confidenceAudits || [data.confidenceAudit]).filter(Boolean).map((audit) => `<div class="paper-regime-guard ${audit.officialEntryAllowed ? "stable" : "waiting"}"><div><span>${audit.assetId === "usdjpy" ? "USD/JPY" : "EUR/USD"}・確率実績監査</span><strong>${audit.label}</strong></div><small>${audit.samples}/${audit.minimumSamples}件 ・ 表示確率 ${audit.averageConfidence == null ? "--" : `${Math.round(audit.averageConfidence * 100)}%`} ・ 実勝率 ${audit.hitRate == null ? "--" : `${Math.round(audit.hitRate * 100)}%`} ・ Brier ${audit.brierScore == null ? "--" : Number(audit.brierScore).toFixed(3)} ・ 期待値 ${audit.expectancyJpy == null ? "--" : signedYen(audit.expectancyJpy)}</small></div>`).join("")}
+    ${!shadow && (data.confidenceAudits || [data.confidenceAudit]).filter(Boolean).map((audit) => `<div class="paper-regime-guard ${audit.officialEntryAllowed ? "stable" : "waiting"}"><div><span>${audit.assetId === "usdjpy" ? "USD/JPY" : "EUR/USD"}・取引実績の参考比較</span><strong>${!audit.mature ? "取引実績を集計中" : audit.officialEntryAllowed ? "安全条件通過・収益性未証明" : "取引実績の安全条件未通過"}</strong></div><small>${audit.samples}/${audit.minimumSamples}件 ・ 方向予測平均 ${audit.averageConfidence == null ? "--" : `${Math.round(audit.averageConfidence * 100)}%`} ・ 取引黒字率 ${audit.hitRate == null ? "--" : `${Math.round(audit.hitRate * 100)}%`} ・ 取引あたり平均損益 ${audit.expectancyJpy == null ? "--" : signedYen(audit.expectancyJpy)}</small><small>${audit.comparisonCaveat || "方向予測と取引黒字率は別の指標です。"}</small></div>`).join("")}
     ${!shadow && data.explorationPolicy ? `<div class="paper-regime-guard ${data.explorationPolicy.accepted ? "stable" : "waiting"}"><div><span>能力向上・探索運用</span><strong>${data.explorationPolicy.label}</strong></div><small>最大${data.explorationPolicy.maxLots}ロット / 口座リスク${data.explorationPolicy.riskPerTradePct}% / 確率${Math.round(data.explorationPolicy.probabilityFloor * 100)}%以上 / 負けも確率校正へ保存</small></div>` : ""}
-    ${!shadow && data.explorationLearning ? `<div class="paper-regime-guard ${data.explorationLearning.promotedSegments?.length ? "stable" : "waiting"}"><div><span>探索取引・5件単位再学習</span><strong>${data.explorationLearning.status}</strong></div><small>探索 ${data.explorationLearning.samples}/${data.explorationLearning.minimumSamples}件 ・ 勝率 ${data.explorationLearning.hitRate == null ? "--" : `${Math.round(data.explorationLearning.hitRate * 100)}%`} ・ 期待値 ${data.explorationLearning.expectancyJpy == null ? "--" : signedYen(data.explorationLearning.expectancyJpy)} ・ Brier ${data.explorationLearning.brierScore == null ? "--" : Number(data.explorationLearning.brierScore).toFixed(3)}</small></div>` : ""}
+    ${!shadow && data.explorationLearning ? `<div class="paper-regime-guard ${data.explorationLearning.promotedSegments?.length ? "stable" : "waiting"}"><div><span>探索取引・間違い修正学習</span><strong>${data.explorationLearning.status}</strong></div><small>探索 ${data.explorationLearning.samples}/${data.explorationLearning.minimumSamples}件 ・ 勝率 ${data.explorationLearning.hitRate == null ? "--" : `${Math.round(data.explorationLearning.hitRate * 100)}%`} ・ 期待値 ${data.explorationLearning.expectancyJpy == null ? "--" : signedYen(data.explorationLearning.expectancyJpy)} ・ Brier ${data.explorationLearning.brierScore == null ? "--" : Number(data.explorationLearning.brierScore).toFixed(3)}</small><small>${data.explorationLearning.mistakePatterns?.length ? `最多の失敗要因: ${data.explorationLearning.mistakePatterns[0].label} ${data.explorationLearning.mistakePatterns[0].samples}件` : "負けた取引を時間帯・局面・根拠不一致別に自動分類します"}</small></div>` : ""}
+    ${!shadow && data.tradeStylePerformance ? `<div class="paper-regime-guard ${data.tradeStylePerformance.styles?.every((row) => row.validatedProfitable) ? "stable" : "waiting"}"><div><span>スタイル別収益性</span><strong>${data.tradeStylePerformance.status}</strong></div><small>${data.tradeStylePerformance.styles.map((row) => `${row.label} ${row.samples}/${row.minimumSamples}件・勝率${row.winRate == null ? "--" : `${Math.round(row.winRate * 100)}%`}・期待値${row.expectancyJpy == null ? "--" : signedYen(row.expectancyJpy)}・PF${row.profitFactor == null ? "--" : Number(row.profitFactor).toFixed(2)}・最大DD${yen(row.maximumDrawdownJpy)}・${row.status}`).join(" / ")}</small><small>旧取引 ${data.tradeStylePerformance.unclassifiedSamples}件は後付け分類せず、スタイル評価から除外</small></div>` : ""}
     <div class="paper-condition-grid">
       <div><span>次の発注条件</span>${conditions.map((condition) => `<small class="${condition.met ? "met" : "unmet"}">${condition.met ? "✓" : "×"} ${condition.label}</small>`).join("") || "<small>判定待ち</small>"}</div>
       <div><span>発注を妨げている条件</span>${(data.blockers || []).map((item) => `<small class="unmet">${item}</small>`).join("") || "<small class=\"met\">なし</small>"}</div>
@@ -4218,10 +4486,10 @@ function renderPaperAccount(data, panelEl, statusEl, containerEl, { shadow = fal
     </div>
     <div class="paper-trade-history">
       <div class="paper-history-head"><span>決済履歴</span><strong>${data.recentTrades?.length || 0}件表示</strong></div>
-      ${data.tradeProof ? `<div class="paper-entry-snapshot"><span>損益証明・改ざん検知台帳</span><strong class="${data.tradeProof.verified && data.tradeProof.accountReconciled ? "up" : "down"}">${data.tradeProof.verified ? "SHA-256照合一致" : "照合不一致"} / 口座${data.tradeProof.accountReconciled ? "一致" : "不一致"} / ${signedYen(data.tradeProof.totalNetPnl)}</strong><small>${data.tradeProof.trades}取引（勝ち ${data.tradeProof.wins} / 負け ${data.tradeProof.losses}）・ 最終ハッシュ ${String(data.tradeProof.chainHead || "").slice(0, 20)}…</small></div>` : ""}
+      ${data.tradeProof ? `<div class="paper-entry-snapshot"><span>決済損益と口座残高の照合</span><strong class="${data.tradeProof.accountReconciled ? "up" : "down"}">${escapeMarkup(data.tradeProof.reconciliationStatus || "照合待ち")} / 残差 ${data.tradeProof.residual == null ? "未確認" : signedYen(data.tradeProof.residual)}</strong><small>決済損益 ${signedYen(data.tradeProof.totalNetPnl)} / 保有中の開始費用 ${data.tradeProof.openCost == null ? "未確認" : signedYen(-Number(data.tradeProof.openCost))} / 保有中の途中決済 ${data.tradeProof.partialNetPnl == null ? "未確認" : signedYen(data.tradeProof.partialNetPnl)} / 残高増減 ${data.tradeProof.accountDelta == null ? "未確認" : signedYen(data.tradeProof.accountDelta)}</small><small>残差±1円以内を照合範囲とします。丸めを含む残差の原因は確認できていません。</small><small>${data.tradeProof.trades}取引（勝ち ${data.tradeProof.wins} / 負け ${data.tradeProof.losses}）・履歴ハッシュ ${escapeMarkup(String(data.tradeProof.chainHead || "").slice(0, 20))}… 現在の履歴から再計算した値であり、過去の基準値との照合や改ざん検出を保証しません。</small></div>` : ""}
       ${(data.recentTrades || []).length ? `
-        <div class="paper-table-scroll"><table><thead><tr><th>開始日時</th><th>決済日時</th><th>保有時間</th><th>通貨ペア</th><th>方向</th><th>開始値</th><th>決済値</th><th>損益</th><th>コスト</th><th>出口方式</th><th>理由</th></tr></thead><tbody>
-        ${(data.recentTrades || []).map((trade) => { const digits = trade.pairLabel === "USD/JPY" ? 3 : 5; const held = holdingMinutes(trade); return `<tr><td>${new Date(trade.openedAt).toLocaleString("ja-JP")}</td><td>${new Date(trade.closedAt).toLocaleString("ja-JP")}</td><td><strong>${durationLabel(held)}</strong></td><td>${trade.pairLabel || "EUR/USD"}${trade.validationTier === "fundamental" ? "<small>重要材料</small>" : trade.validationTier === "counterfactual_release" ? "<small>選択解除・1ロット</small>" : trade.validationTier === "trial" ? "<small>低リスク試験</small>" : ""}</td><td>${trade.side === "long" ? "買い" : "売り"}</td><td>${Number(trade.entryPrice).toFixed(digits)}</td><td>${Number(trade.exitPrice).toFixed(digits)}</td><td class="${Number(trade.netPnl || 0) >= 0 ? "up" : "down"}">${signedYen(trade.netPnl)}</td><td>${yen(trade.costs)}</td><td>${trade.exitPolicyVersion === "fixed-range-v1" ? "固定レンジ" : "旧固定方式"}${trade.stopPct ? `<small>SL ${Number(trade.stopPct).toFixed(3)}% / TP ${Number(trade.targetPct).toFixed(3)}%</small>` : "<small>当時の証跡不足</small>"}</td><td>${trade.reason}${trade.entrySnapshot?.qualityGateAccepted === false && !["fundamental", "counterfactual_release"].includes(trade.validationTier) ? `<small>ゲート不合格: ${trade.entrySnapshot.qualityGateReason || "基準未達"}</small>` : ["fundamental", "counterfactual_release"].includes(trade.validationTier) ? `<small>${trade.entrySnapshot?.qualityGateReason || "選択条件一致"}</small>` : ""}</td></tr>`; }).join("")}
+        <div class="paper-table-scroll"><table><thead><tr><th>開始日時</th><th>決済日時</th><th>保有時間</th><th>スタイル</th><th>通貨ペア</th><th>方向</th><th>開始値</th><th>決済値</th><th>損益</th><th>コスト</th><th>出口方式</th><th>理由</th></tr></thead><tbody>
+        ${(data.recentTrades || []).map((trade) => { const digits = trade.pairLabel === "USD/JPY" ? 3 : 5; const held = holdingMinutes(trade); const exitLabel = trade.exitPolicyVersion === "exploration-risk-reward-v3" ? "損失1R・利益2R" : trade.exitPolicyVersion === "fixed-range-v1" ? "固定レンジ" : "旧固定方式"; const styleLabel = trade.tradeStyleLabel || (trade.tradeStyle === "swing" ? "スイング" : trade.tradeStyle === "scalping" ? "スキャルピング" : "旧取引"); return `<tr><td>${new Date(trade.openedAt).toLocaleString("ja-JP")}</td><td>${new Date(trade.closedAt).toLocaleString("ja-JP")}</td><td><strong>${durationLabel(held)}</strong></td><td><strong>${styleLabel}</strong><small>${trade.intendedHorizon || "当時の分類なし"}</small></td><td>${trade.pairLabel || "EUR/USD"}${trade.validationTier === "observation" ? "<small>観測1ロット・公式評価外</small>" : trade.validationTier === "fundamental" ? "<small>重要材料</small>" : trade.validationTier === "counterfactual_release" ? "<small>選択解除・1ロット</small>" : trade.validationTier === "trial" ? "<small>低リスク試験</small>" : ""}</td><td>${trade.side === "long" ? "買い" : "売り"}</td><td>${Number(trade.entryPrice).toFixed(digits)}</td><td>${Number(trade.exitPrice).toFixed(digits)}</td><td class="${Number(trade.netPnl || 0) >= 0 ? "up" : "down"}">${signedYen(trade.netPnl)}</td><td>${yen(trade.costs)}</td><td>${exitLabel}${trade.stopPct ? `<small>SL ${Number(trade.stopPct).toFixed(3)}% / TP ${Number(trade.targetPct).toFixed(3)}%</small>` : "<small>当時の証跡不足</small>"}</td><td>${trade.reason}${trade.entrySnapshot?.qualityGateAccepted === false && !["fundamental", "counterfactual_release"].includes(trade.validationTier) ? `<small>ゲート不合格: ${trade.entrySnapshot.qualityGateReason || "基準未達"}</small>` : ["fundamental", "counterfactual_release"].includes(trade.validationTier) ? `<small>${trade.entrySnapshot?.qualityGateReason || "選択条件一致"}</small>` : ""}</td></tr>`; }).join("")}
         </tbody></table></div>
       ` : `<div class="paper-history-empty">まだ決済取引はありません。${shadow ? "条件を満たす次の確定15分シグナルから学習を開始します。" : "予測品質ゲートを通過した時点から前向き検証を開始します。"}</div>`}
     </div>
@@ -4330,10 +4598,11 @@ function renderTradingAnalytics(official, eurusdFrames = [], yenCrossCommand = n
 function renderPaperTrading(official, shadow, comparison, weekendReplay = null) {
   renderPaperPositionBar(official, shadow);
   renderPaperAccount(official, paperTradingPanelEl, paperTradingStatusEl, paperTradingEl);
-  if (detailMode === "full") renderPaperAccount({ ...shadow, weekendReplay }, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
+  if (detailMode === "full" || selectedPaperView === "shadow") renderPaperAccount({ ...shadow, weekendReplay }, shadowPaperTradingPanelEl, shadowPaperTradingStatusEl, shadowPaperTradingEl, { shadow: true });
   if (!paperTradingComparisonEl || !comparison) return;
   const gate = comparison.gateVerification || {};
   const directionCalibration = comparison.directionProbabilityCalibration || {};
+  const strictDirection = comparison.strictDirectionalAudit || {};
   const factorWalkForward = comparison.factorWalkForwardGate || {};
   const yen = (value) => `${Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 0 })}円`;
   const sideLabel = (row) => (row.side === "long" || row.direction === "up") ? "買い" : (row.side === "short" || row.direction === "down") ? "売り" : "--";
@@ -4350,6 +4619,7 @@ function renderPaperTrading(official, shadow, comparison, weekendReplay = null) 
       <div><span>品質ゲートで見送って正解</span><strong>${gate.skippedCorrectly || 0}件</strong><small>回避損失 ${yen(gate.avoidedLossJpy)}</small></div>
       <div><span>見送りによる機会損失</span><strong>${gate.missedOpportunities || 0}件</strong><small>逸失利益 ${yen(gate.missedProfitJpy)}</small></div>
     </div>
+    ${strictDirection.assets ? `<div class="gate-net-opportunity"><span>10分方向予測・期限後の方向照合</span><strong>実績は取引の勝率とは別集計</strong>${["eurusd", "usdjpy"].map((id) => { const row = strictDirection.assets[id]; return row ? `<small>${id === "eurusd" ? "EUR/USD" : "USD/JPY"}: ${row.counts.valid}件中 ${row.hits}一致・${row.misses}不一致 / 一致率 ${row.directionHitRate == null ? "--" : `${Math.round(row.directionHitRate * 100)}%`} / 期限前価格 ${row.counts.beforeDeadline}件を除外 / 横ばい ${row.counts.flatForecast}件</small>` : ""; }).join("")}<small>記録済み10分予測のみ。期限後3分以内・重複除外。複数ソースの独立照合は未確認、収益性の証明ではありません。</small></div>` : ""}
     ${directionCalibration.adjustedProbability != null ? `<div class="gate-net-opportunity ${directionCalibration.overconfident ? "missed" : "protected"}"><span>15分方向確率の実績校正</span><strong>モデル ${Math.round(Number(directionCalibration.rawProbability || 0.5) * 100)}% → 実績校正 ${Math.round(Number(directionCalibration.adjustedProbability || 0.5) * 100)}%</strong><small>方向一致 ${directionCalibration.hitRate == null ? "蓄積中" : `${Math.round(Number(directionCalibration.hitRate) * 100)}%`} / ${directionCalibration.samples || 0}件。4時間仮想取引の勝率・期待損益とは別指標です。</small></div>` : ""}
     ${factorWalkForward.status ? `<div class="gate-net-opportunity ${factorWalkForward.active ? "protected" : "missed"}"><span>要因条件・三分割検証</span><strong>${factorWalkForward.status}</strong><small>${factorWalkForward.samples || 0}独立標本 / ${factorWalkForward.methodology || "学習・検証・最終未使用を分離して審査"}</small>${factorWalkForward.benchmarks?.currentModel ? `<small>最終未使用: 現行 ${Math.round(Number(factorWalkForward.benchmarks.currentModel.directionHitRate || 0) * 100)}% / 常時買い ${Math.round(Number(factorWalkForward.benchmarks.alwaysUp?.directionHitRate || 0) * 100)}% / 常時売り ${Math.round(Number(factorWalkForward.benchmarks.alwaysDown?.directionHitRate || 0) * 100)}%</small>` : ""}${factorWalkForward.expertArena?.status ? `<small>専門モデル競争: ${factorWalkForward.expertArena.status}${factorWalkForward.expertArena.samples ? ` / 全世代${factorWalkForward.expertArena.samples}標本` : ""}${factorWalkForward.expertArena.selected?.test ? ` / 最終 ${Math.round(Number(factorWalkForward.expertArena.selected.test.directionHitRate || 0) * 100)}%・平均${Number(factorWalkForward.expertArena.selected.test.averageNetMovePct || 0).toFixed(4)}%` : ""}</small>` : ""}</div>` : ""}
     <div class="gate-net-opportunity ${Number(gate.netOpportunityJpy || 0) > 0 ? "missed" : "protected"}"><span>見送りの純効果</span><strong>${Number(gate.netOpportunityJpy || 0) > 0 ? `利益逸失超過 ${yen(gate.netOpportunityJpy)}` : `損失回避超過 ${yen(Math.abs(Number(gate.netOpportunityJpy || 0)))}`}</strong><small>全解除せず、局面と売買方向ごとに再検証します</small></div>
@@ -4948,12 +5218,16 @@ function renderLearning(accuracy, markets, backgroundLearning, walkForwardValida
   }).join("");
 }
 
+function hasDisplayNumber(value) {
+  return (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) && Number.isFinite(Number(value));
+}
+
 function pctText(value) {
-  return Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(0)}%` : "--";
+  return hasDisplayNumber(value) ? `${(Number(value) * 100).toFixed(0)}%` : "--";
 }
 
 function maeText(value) {
-  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(3)}%` : "--";
+  return hasDisplayNumber(value) ? `${Number(value).toFixed(3)}%` : "--";
 }
 
 function renderBacktest(backtest) {
@@ -4967,7 +5241,7 @@ function renderBacktest(backtest) {
   const rows = [
     ...assets.map((item) => ({ type: "銘柄", label: item.label, samples: item.samples, hitRate: item.hitRate, maePct: item.maePct })),
     ...conditions.map((item) => ({ type: "条件", label: item.label, samples: item.samples, hitRate: item.hitRate, maePct: item.maePct })),
-    ...models.map((item) => ({ type: "モデル", label: item.label, samples: item.samples, hitRate: item.hitRate, maePct: item.maePct })),
+    ...models.map((item) => ({ type: "モデル", label: item.label, samples: item.samples, directionalSamples: item.directionalSamples, hitRate: item.hitRate, maePct: item.maePct })),
     ...hours.map((item) => ({ type: "時間帯", label: item.label, samples: item.samples, hitRate: item.hitRate, maePct: item.maePct })),
     ...features.map((item) => ({ type: "特徴量", label: item.label, samples: item.samples, hitRate: item.hitRate, maePct: item.maePct }))
   ].slice(0, 12);
@@ -4979,7 +5253,7 @@ function renderBacktest(backtest) {
       <div class="backtest-item">
         <span>${item.type}</span>
         <strong>${item.label}</strong>
-        <small>照合 ${item.samples}件 / 方向一致 ${pctText(item.hitRate)} / 平均誤差 ${maeText(item.maePct)}</small>
+        <small>照合 ${item.samples}件 / 方向一致 ${pctText(item.hitRate)}${item.type === "モデル" && item.directionalSamples != null ? `（方向対象 ${item.directionalSamples}件）` : ""} / 平均誤差 ${maeText(item.maePct)}</small>
       </div>
     `).join("");
   }
@@ -5002,11 +5276,40 @@ function renderAiQuestionAnswer(result) {
     item.textContent = fact;
     list.appendChild(item);
   }
+  const sources = document.createElement("p");
+  for (const source of result.sources || []) {
+    try {
+      const url = new URL(source.url);
+      if (url.protocol !== "https:") continue;
+      const link = document.createElement("a");
+      link.href = url.href;
+      link.textContent = source.title;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      sources.append(link, document.createTextNode(" "));
+    } catch { /* Ignore malformed source links. */ }
+  }
   const note = document.createElement("small");
   const time = result.snapshotAt ? new Date(result.snapshotAt).toLocaleTimeString("ja-JP") : "--";
   note.textContent = `${result.caution} / 参照データ ${time}`;
-  aiQuestionAnswerEl.append(heading, summary, list, note);
+  aiQuestionAnswerEl.append(heading, summary, list);
+  if (sources.childNodes.length) aiQuestionAnswerEl.append(sources);
+  aiQuestionAnswerEl.append(note);
 }
+
+async function renderEconomicLearningProgress() {
+  const target = document.getElementById("economic-learning-progress");
+  if (!target) return;
+  try {
+    const { economicLearningProgress } = await import("./economic-knowledge.js?v=4");
+    const progress = economicLearningProgress();
+    target.textContent = `${progress.current}: ${progress.covered}/${progress.total}項目登録 / ${progress.ability}。目標は小学生レベルの基礎から${progress.goal}。次: ${progress.next}。`;
+  } catch {
+    target.textContent = "基礎資料の読み込みを確認できません。学習段階は判定できません。";
+  }
+}
+
+renderEconomicLearningProgress();
 
 async function askCurrentStatus(question) {
   const value = String(question || "").trim();
@@ -5017,7 +5320,7 @@ async function askCurrentStatus(question) {
   try {
     let result;
     if (STATIC_PREVIEW_MODE) {
-      const assistant = await import("./current-status-assistant.js?v=158");
+      const assistant = await import("./current-status-assistant.js?v=162");
       result = assistant.answerCurrentStatus(value, latestSnapshot);
     } else {
       const response = await fetch("/api/ask-current-status", {
@@ -5043,27 +5346,30 @@ async function loadSnapshot(forceFull = false) {
   refreshButton.disabled = true;
   try {
     const fullRefresh = Boolean(forceFull) || !latestSnapshot || Date.now() - lastFullSnapshotAt >= deliveryCadence().full;
+    const localRealtime = isLocalRealtimeClient();
     const endpoint = STATIC_PREVIEW_MODE
       ? NATIVE_APP_MODE
         ? globalThis.WpsNative.snapshotUrl
         : new URL("./preview-snapshot.json", document.baseURI).toString()
       : fullRefresh
-      ? `/api/snapshot${detailMode === "compact" ? "?view=compact" : ""}`
+      ? `/api/snapshot?${new URLSearchParams({
+        ...(detailMode === "compact" ? { view: "compact" } : {}),
+        ...(localRealtime && forceFull ? { refresh: "1" } : {})
+      }).toString()}`
       : "/api/snapshot/pulse";
     const currentEtag = STATIC_PREVIEW_MODE ? "" : fullRefresh ? snapshotEtag : coreSnapshotEtag;
     let payload;
     let usingNativeCache = false;
     try {
-      const response = await fetch(endpoint, {
+      const { response, payload: responsePayload } = await fetchJson(endpoint, {
         cache: "no-cache",
         headers: currentEtag ? { "If-None-Match": currentEtag } : {}
-      });
+      }, fullRefresh ? 120_000 : 30_000);
       if (response.status === 304) return;
-      if (!response.ok) throw new Error(`API ${response.status}`);
       const responseEtag = response.headers.get("etag") || currentEtag;
       if (fullRefresh) snapshotEtag = responseEtag;
       else coreSnapshotEtag = responseEtag;
-      payload = await response.json();
+      payload = responsePayload;
       if (NATIVE_APP_MODE) await globalThis.WpsNative.saveSnapshot(payload);
     } catch (networkError) {
       const cached = NATIVE_APP_MODE ? await globalThis.WpsNative.loadSnapshot() : null;
@@ -5092,6 +5398,7 @@ async function loadSnapshot(forceFull = false) {
         markets: mergedMarkets.length ? mergedMarkets : latestSnapshot.markets
       };
     }
+    latestSnapshot.markets = mergeLiveMarkets(latestSnapshot.markets || [], [...latestLiveFxById.values()]);
     const snapshot = latestSnapshot;
     if (NATIVE_APP_MODE) nativePushStatus = await globalThis.WpsNative.getPushStatus().catch(() => nativePushStatus);
     if (NATIVE_APP_MODE) globalThis.WpsNative.syncTradeNotifications(snapshot).catch(() => undefined);
@@ -5112,6 +5419,7 @@ async function loadSnapshot(forceFull = false) {
     renderExternalSignalShadow(snapshot.externalSignalShadow);
     renderTimeMachine(snapshot.timeMachine);
     renderDataHealth(snapshot.dataHealth);
+    renderDeliveryBandwidth(snapshot.deliveryBandwidth);
     renderAiBriefing(snapshot.aiBriefing);
     renderNewsTicker(snapshot.newsTicker || []);
     renderFxNews(snapshot.fxNews || []);
@@ -5137,7 +5445,7 @@ async function loadSnapshot(forceFull = false) {
     renderValidationControl(snapshot.leakageAudit, snapshot.threeWayGate, snapshot.attributionLedger);
     renderPaperTrading(snapshot.paperTrading, snapshot.shadowPaperTrading, snapshot.paperTradingComparison, snapshot.weekendReplay);
     renderTradingAnalytics(snapshot.paperTrading, snapshot.eurusdTimeframes, snapshot.yenCrossCommand);
-    if (detailMode === "full") renderYttDemoTrading(snapshot.yttDemoTrading);
+    if (detailMode === "full" || selectedPaperView === "practice") renderYttDemoTrading(snapshot.yttDemoTrading);
     if (!yttDemoTriggerEl?.value) prefillYttScenario();
     renderTradeOpportunityMonitor(snapshot.paperTrading, snapshot.probabilitySimulation, snapshot.yenCrossCommand, snapshot.threeWayGate);
     renderAiImprovement(snapshot.aiImprovement, snapshot.context?.fxCausalModel?.fourHourFactorAllocator);
@@ -5175,34 +5483,50 @@ async function loadSnapshot(forceFull = false) {
 
 function deliveryCadence() {
   const mode = latestSnapshot?.deliveryBandwidth?.mode || "normal";
-  const hostname = globalThis.location?.hostname || "";
-  const localRealtime = NATIVE_APP_MODE || ["localhost", "127.0.0.1"].includes(hostname)
-    || /^10\./.test(hostname) || /^192\.168\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
-  if (mode === "critical") return { snapshot: 15 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 60 * 1000, full: 2 * 60 * 60 * 1000 };
-  if (mode === "saving") return { snapshot: 10 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 30 * 1000, full: 60 * 60 * 1000 };
-  return { snapshot: localRealtime ? 60 * 1000 : 5 * 60 * 1000, liveFx: localRealtime ? 10 * 1000 : 15 * 1000, full: 30 * 60 * 1000 };
+  const localRealtime = isLocalRealtimeClient();
+  if (localRealtime) return { snapshot: 60 * 1000, liveFx: 10 * 1000, full: 5 * 60 * 1000 };
+  if (globalThis.location?.hostname?.endsWith(".trycloudflare.com")) {
+    return { snapshot: 60 * 1000, liveFx: 15 * 1000, full: 30 * 60 * 1000 };
+  }
+  if (mode === "critical") return { snapshot: 15 * 60 * 1000, liveFx: 60 * 1000, full: 2 * 60 * 60 * 1000 };
+  if (mode === "saving") return { snapshot: 10 * 60 * 1000, liveFx: 30 * 1000, full: 60 * 60 * 1000 };
+  return { snapshot: 5 * 60 * 1000, liveFx: 15 * 1000, full: 30 * 60 * 1000 };
 }
 
-function scheduleSnapshotRefresh() {
+function isLocalRealtimeClient() {
+  const hostname = globalThis.location?.hostname || "";
+  return NATIVE_APP_MODE || ["localhost", "127.0.0.1"].includes(hostname)
+    || /^10\./.test(hostname) || /^192\.168\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+}
+
+function scheduleSnapshotRefresh(delayMs = null) {
   clearTimeout(snapshotTimer);
   if (document.hidden) return;
   snapshotTimer = setTimeout(async () => {
-    await loadSnapshot();
-    scheduleSnapshotRefresh();
-  }, STATIC_PREVIEW_MODE ? 30 * 60 * 1000 : deliveryCadence().snapshot);
+    const startedAt = Date.now();
+    try { await loadSnapshot(); } finally {
+      const interval = STATIC_PREVIEW_MODE ? 30 * 60 * 1000 : deliveryCadence().snapshot;
+      scheduleSnapshotRefresh(Math.max(5_000, interval - (Date.now() - startedAt)));
+    }
+  }, delayMs ?? (STATIC_PREVIEW_MODE ? 30 * 60 * 1000 : deliveryCadence().snapshot));
 }
 
-function scheduleLiveFxRefresh() {
+function scheduleLiveFxRefresh(delayMs = null) {
   clearTimeout(liveFxTimer);
   if (document.hidden || STATIC_PREVIEW_MODE) return;
   liveFxTimer = setTimeout(async () => {
-    await refreshMapLiveFx();
-    scheduleLiveFxRefresh();
-  }, deliveryCadence().liveFx);
+    const startedAt = Date.now();
+    try { await refreshMapLiveFx(); } finally {
+      scheduleLiveFxRefresh(Math.max(5_000, deliveryCadence().liveFx - (Date.now() - startedAt)));
+    }
+  }, delayMs ?? deliveryCadence().liveFx);
 }
 
 initFullWidthCharts();
 initFullWidthGateVerification();
+initPaperViews();
+displaySimplifyToggleEl?.addEventListener("click", () => applySimplifiedDisplay(!document.body.classList.contains("simplified-display")));
+applySimplifiedDisplay(localStorage.getItem("worldPredictionSimplifiedDisplay") !== "off", { persist: false });
 initResponsiveIntelligenceRail();
 showOpenedNotificationDetail();
 initMobileSectionTabs();
@@ -5315,6 +5639,7 @@ refreshButton.addEventListener("click", async () => {
   try {
     if (!STATIC_PREVIEW_MODE) await refreshMapLiveFx();
     await loadSnapshot(true);
+    if (!STATIC_PREVIEW_MODE) await refreshOneMinutePivotCharts(true);
   } finally {
     refreshButton.classList.remove("refreshing");
     if (label) label.textContent = "今すぐ更新";

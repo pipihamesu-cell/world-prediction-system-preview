@@ -77,6 +77,7 @@ const timeMachineSliderEl = document.getElementById("time-machine-slider");
 const timeMachineClockEl = document.getElementById("time-machine-clock");
 const timeMachineAuditEl = document.getElementById("time-machine-audit");
 const timeMachineAudioEl = document.getElementById("time-machine-audio");
+const timeMachineAvailabilityEl = document.getElementById("time-machine-availability");
 const fxNewsEl = document.getElementById("fx-news");
 const eurusdTimeframesEl = document.getElementById("eurusd-timeframes");
 const dailyForecastReferenceEl = document.getElementById("daily-forecast-reference");
@@ -3403,13 +3404,24 @@ function renderTimeMachine(data) {
   stopTimeMachine();
   latestTimeMachine = data;
   timeMachineFrameIndex = 0;
+  const hasFrames = Boolean(data.frames?.length);
+  if (timeMachinePlayEl) timeMachinePlayEl.disabled = !hasFrames;
+  if (timeMachineEventEl) timeMachineEventEl.disabled = STATIC_PREVIEW_MODE || !data.episodes?.length;
+  if (timeMachineAvailabilityEl) timeMachineAvailabilityEl.textContent = STATIC_PREVIEW_MODE
+    ? "公開確認版は保存済みの1件だけ再生できます。他の記録はPC版で確認してください。"
+    : hasFrames ? "" : "再生できる記録を準備中です。";
   if (!data.episodes?.length) {
     timeMachineEventEl.innerHTML = `<option>急変履歴を蓄積中</option>`;
     timeMachineEl.innerHTML = `<p class="time-machine-empty">急変と予測履歴が蓄積されると、前後30分を1分単位で再生できます。</p>`;
     return;
   }
-  timeMachineEventEl.innerHTML = data.episodes.map((item) => `<option value="${item.id}" ${item.id === data.selectedId ? "selected" : ""}>${new Date(item.at).toLocaleString("ja-JP")}｜${item.label}</option>`).join("");
+  const episodes = STATIC_PREVIEW_MODE ? data.episodes.filter((item) => item.id === data.selectedId) : data.episodes;
+  timeMachineEventEl.innerHTML = episodes.map((item) => `<option value="${item.id}" ${item.id === data.selectedId ? "selected" : ""}>${new Date(item.at).toLocaleString("ja-JP")}｜${item.label}</option>`).join("");
   renderTimeMachineFrame();
+}
+
+function renderTimeMachineSnapshot(data) {
+  if (!latestTimeMachine?.frames?.length) renderTimeMachine(data);
 }
 
 async function loadTimeMachineEpisode(episodeId) {
@@ -5417,7 +5429,7 @@ async function loadSnapshot(forceFull = false) {
     renderDesktopOperations(snapshot.desktopOperations, snapshot.access);
     renderShockLog(snapshot.shockAnalyses || [], snapshot.postShockShadowReplay);
     renderExternalSignalShadow(snapshot.externalSignalShadow);
-    renderTimeMachine(snapshot.timeMachine);
+    renderTimeMachineSnapshot(snapshot.timeMachine);
     renderDataHealth(snapshot.dataHealth);
     renderDeliveryBandwidth(snapshot.deliveryBandwidth);
     renderAiBriefing(snapshot.aiBriefing);

@@ -5340,6 +5340,10 @@ function renderLearning(accuracy, markets, backgroundLearning, walkForwardValida
       <strong>モデル別コスト点検</strong>
       ${costWarnings.slice(0, 4).map((row) => `<span>${escapeMarkup(row.label)}: コスト後の試算 ${row.meanPct.toFixed(4)}% / ${row.samples}件<br><b class="${row.weight !== null && row.weight > 1 ? "cost-overweight" : ""}">合議重み ${row.weight === null ? "確認待ち" : `${row.weight.toFixed(2)}倍${row.blockedBoost ? "（増量抑制）" : row.weight > 1 ? "（1倍超）" : ""}`}</b></span>`).join("")}
       <span>既存の後半集計は、結果の値幅がコスト以下の例や横ばいを除外しています。収益性の証明ではありません。</span>
+    </div>` : !Array.isArray(walkForwardValidation?.models) || !walkForwardValidation.models.length ? `
+    <div class="learning-item learning-item-audit learning-item-cost">
+      <strong>モデル別コスト点検</strong>
+      <span>${STATIC_PREVIEW_MODE ? "保存済みの公開確認データにモデル別成績がないため、判定できません。" : "モデル別の検証データを取得待ちです。"}</span>
     </div>` : "";
   const backgroundItem = `
     <div class="learning-item learning-item-auto">

@@ -682,13 +682,36 @@ function addPivotHistoryLines(chart, LC, frame, timeframe, levelStyles, liveTime
   }
 }
 
+function safePivotDisplayFrame(frame, timeframe) {
+  const last = frame?.candles?.at(-1);
+  const high = Number(last?.high);
+  const low = Number(last?.low);
+  if (timeframe !== "m1" || !last || !Number.isFinite(high) || !Number.isFinite(low) || high !== low) return frame;
+  const notice = "直近の足に値幅がないためピボットは算出しません。";
+  return {
+    ...frame,
+    levels: {},
+    basis: null,
+    calculatedFrom: null,
+    pivotHistory: (frame.pivotHistory || []).filter((item) => Number(item.basis?.high) > Number(item.basis?.low)),
+    suppressAutoLines: true,
+    chartNote: frame.chartNote?.includes(notice) ? frame.chartNote : [frame.chartNote, notice].filter(Boolean).join(" / ")
+  };
+}
+
 function pivotBasisSummary(frame, decimals) {
   const basis = frame?.basis || {};
   const high = Number(basis.high);
   const low = Number(basis.low);
   const close = Number(basis.close);
-  if (![high, low, close].every(Number.isFinite)) return "";
-  return ` / 前確定足 H ${high.toFixed(decimals)} L ${low.toFixed(decimals)} C ${close.toFixed(decimals)}`;
+  const details = [high, low, close].every(Number.isFinite)
+    ? ` / 前確定足 H ${high.toFixed(decimals)} L ${low.toFixed(decimals)} C ${close.toFixed(decimals)}` : "";
+  return `${details}${frame?.chartNote ? ` / ${frame.chartNote}` : ""}`;
+}
+
+function pivotLevelValue(value, decimals) {
+  const number = value === null || value === undefined ? NaN : Number(value);
+  return Number.isFinite(number) ? number.toFixed(decimals) : "--";
 }
 
 function pivotTimeframeSeconds(timeframe) {
@@ -865,7 +888,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   euroSovereignSpreadToggleEl?.setAttribute("aria-pressed", "false");
   if (eurusdPivotTradeEl) eurusdPivotTradeEl.hidden = false;
   eurusdPivotLevelsEl.hidden = false;
-  const frame = data?.frames?.[timeframe];
+  const frame = safePivotDisplayFrame(data?.frames?.[timeframe], timeframe);
   eurusdPivotButtons.forEach((button) => {
     const active = button.dataset.pivotTimeframe === timeframe;
     button.classList.toggle("active", active);
@@ -882,11 +905,11 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
     p: ["P", "#ffd166"], s1: ["S1", "#69d7c3"], s2: ["S2", "#48b8d0"], s3: ["S3", "#5b96df"]
   };
   if (!window.LightweightCharts) {
-    const autoLines = autoLineEnabled.eurusd ? buildPivotAutoLines(frame.candles) : [];
-    renderPivotFallback(frame, timeframe, levelStyles, eurusdPivotChartEl, "EUR/USD", 5, autoLineEnabled.eurusd);
+    const autoLines = autoLineEnabled.eurusd && !frame.suppressAutoLines ? buildPivotAutoLines(frame.candles) : [];
+    renderPivotFallback(frame, timeframe, levelStyles, eurusdPivotChartEl, "EUR/USD", 5, autoLineEnabled.eurusd && !frame.suppressAutoLines);
     const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
     eurusdPivotStatusEl.textContent = `${frame.label} / 日本時間(JST) / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
-    eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>`).join("");
+    eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${pivotLevelValue(frame.levels?.[key], 5)}</strong></div>`).join("");
     return;
   }
   eurusdPivotChart?.remove();
@@ -920,7 +943,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   const liveCandle = buildLivePivotCandle("eurusd", frame, timeframe);
   if (liveCandle) series.update(liveCandle);
   addPivotHistoryLines(eurusdPivotChart, LC, frame, timeframe, levelStyles, liveCandle?.time);
-  const autoLines = addPivotAutoLines(eurusdPivotChart, LC, frame.candles, autoLineEnabled.eurusd);
+  const autoLines = addPivotAutoLines(eurusdPivotChart, LC, frame.candles, autoLineEnabled.eurusd && !frame.suppressAutoLines);
   eurusdPivotChart.timeScale().fitContent();
   eurusdPivotResizeObserver = new ResizeObserver(() => {
     eurusdPivotChart?.applyOptions({ width: eurusdPivotChartEl.clientWidth, height: eurusdPivotChartEl.clientHeight });
@@ -930,7 +953,7 @@ function renderEurusdPivotChart(data, timeframe = selectedPivotTimeframe) {
   eurusdPivotStatusEl.textContent = `${frame.label} / 日本時間(JST) / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoLines.length}本 / 基準 ${calculated}${pivotBasisSummary(frame, 5)}`;
   appendLivePivotStatus(eurusdPivotStatusEl, latestLiveFxById.get("eurusd"));
   eurusdPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `
-    <div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(5)}</strong></div>
+    <div style="--pivot-color:${color}"><span>${label}</span><strong>${pivotLevelValue(frame.levels?.[key], 5)}</strong></div>
   `).join("");
 }
 
@@ -1735,7 +1758,7 @@ function applyDetailMode({ rerender = true } = {}) {
 function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) {
   if (!usdjpyPivotChartEl || !usdjpyPivotLevelsEl || !usdjpyPivotStatusEl) return;
   latestUsdjpyPivotChart = data;
-  const frame = data?.frames?.[timeframe];
+  const frame = safePivotDisplayFrame(data?.frames?.[timeframe], timeframe);
   const decimals = Number(data?.decimals || 3);
   usdjpyPivotButtons.forEach((button) => {
     const active = button.dataset.usdjpyPivotTimeframe === timeframe;
@@ -1754,12 +1777,12 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
   };
   const calculated = frame.calculatedFrom ? new Date(frame.calculatedFrom).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--";
   const updateSummary = () => {
-    const autoCount = autoLineEnabled.usdjpy ? buildPivotAutoLines(frame.candles).length : 0;
+    const autoCount = autoLineEnabled.usdjpy && !frame.suppressAutoLines ? buildPivotAutoLines(frame.candles).length : 0;
     usdjpyPivotStatusEl.textContent = `${frame.label} / 日本時間(JST) / ${frame.candleCount}本 / 履歴ピボット ${frame.pivotHistory?.length || 0}期間 / AUTO ${autoCount}本 / 基準 ${calculated}${pivotBasisSummary(frame, decimals)}`;
-    usdjpyPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${Number(frame.levels?.[key]).toFixed(decimals)}</strong></div>`).join("");
+    usdjpyPivotLevelsEl.innerHTML = Object.entries(levelStyles).map(([key, [label, color]]) => `<div style="--pivot-color:${color}"><span>${label}</span><strong>${pivotLevelValue(frame.levels?.[key], decimals)}</strong></div>`).join("");
   };
   if (!window.LightweightCharts) {
-    renderPivotFallback(frame, timeframe, levelStyles, usdjpyPivotChartEl, "USD/JPY", decimals, autoLineEnabled.usdjpy);
+    renderPivotFallback(frame, timeframe, levelStyles, usdjpyPivotChartEl, "USD/JPY", decimals, autoLineEnabled.usdjpy && !frame.suppressAutoLines);
     updateSummary();
     return;
   }
@@ -1794,7 +1817,7 @@ function renderUsdjpyPivotChart(data, timeframe = selectedUsdjpyPivotTimeframe) 
   const liveCandle = buildLivePivotCandle("usdjpy", frame, timeframe);
   if (liveCandle) series.update(liveCandle);
   addPivotHistoryLines(usdjpyPivotChart, LC, frame, timeframe, levelStyles, liveCandle?.time);
-  addPivotAutoLines(usdjpyPivotChart, LC, frame.candles, autoLineEnabled.usdjpy);
+  addPivotAutoLines(usdjpyPivotChart, LC, frame.candles, autoLineEnabled.usdjpy && !frame.suppressAutoLines);
   usdjpyPivotChart.timeScale().fitContent();
   usdjpyPivotResizeObserver = new ResizeObserver(() => {
     usdjpyPivotChart?.applyOptions({ width: usdjpyPivotChartEl.clientWidth, height: usdjpyPivotChartEl.clientHeight });

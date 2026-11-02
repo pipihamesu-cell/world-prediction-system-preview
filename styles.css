@@ -1622,7 +1622,7 @@ html {
 .cot-history-panel polyline { fill: none; stroke: #64d8b4; stroke-width: 2; vector-effect: non-scaling-stroke; }
 
 @media (max-width: 680px) {
-  #cot-panel { scroll-margin-top: 158px; }
+  #cot-panel, #verification-center { scroll-margin-top: 158px; }
   .cot-weekly-overview { padding: 12px; }
   .cot-weekly-metrics { grid-template-columns: 1fr 1fr; }
   .cot-weekly-metrics > div:first-child { grid-column: 1 / -1; }
@@ -4771,6 +4771,10 @@ html {
   display: block;
   color: var(--muted);
 }
+
+.learning-item-cost span { padding-top: 7px; line-height: 1.45; }
+.learning-item-cost b { color: var(--text); font-weight: 600; }
+.learning-item-cost b.cost-overweight { color: var(--red); }
 
 .learning-item-auto {
   border-left: 3px solid #2ee59d;

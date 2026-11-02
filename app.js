@@ -5292,6 +5292,30 @@ function renderAlerts(alerts) {
   }
 }
 
+function summarizeWalkForwardCostWarnings(walkForwardValidation = {}, markets = []) {
+  const market = (Array.isArray(markets) ? markets : []).find((row) => row?.id === "eurusd");
+  const activeModels = Array.isArray(market?.forecast?.ensemble?.models) ? market.forecast.ensemble.models : [];
+  const validNumber = (value) => value !== null && value !== undefined && typeof value !== "boolean"
+    && !(typeof value === "string" && !value.trim()) && Number.isFinite(Number(value));
+  const warnings = (Array.isArray(walkForwardValidation?.models) ? walkForwardValidation.models : []).flatMap((row) => {
+    if (!row?.key || !validNumber(row.netSamples) || Number(row.netSamples) < 30 || !validNumber(row.netReturnPct) || Number(row.netReturnPct) > 0) return [];
+    const model = activeModels.find((item) => item.key === row.key && item.shadowOnly !== true);
+    const weight = validNumber(model?.adaptiveWeight) ? Number(model.adaptiveWeight) : null;
+    const samples = Number(row.netSamples);
+    const allSamples = validNumber(row.samples) ? Number(row.samples) : null;
+    return [{
+      key: row.key,
+      label: row.label || row.key,
+      samples,
+      meanPct: Number(row.netReturnPct) / samples,
+      excludedCostSamples: allSamples !== null && allSamples >= samples ? allSamples - samples : null,
+      weight,
+      blockedBoost: model?.unprofitableBoostBlocked === true
+    }];
+  });
+  return warnings.sort((a, b) => (b.weight ?? -1) - (a.weight ?? -1));
+}
+
 function renderLearning(accuracy, markets, backgroundLearning, walkForwardValidation = {}) {
   const mae = Number.isFinite(accuracy.totalMaePct) ? `${accuracy.totalMaePct.toFixed(3)}%` : "照合待ち";
   learningScoreEl.textContent = `${accuracy.completed || 0}件 / 平均誤差 ${mae}`;
@@ -5310,6 +5334,13 @@ function renderLearning(accuracy, markets, backgroundLearning, walkForwardValida
   const nextRun = background.nextRunAt
     ? new Date(background.nextRunAt).toLocaleTimeString("ja-JP")
     : "計算中";
+  const costWarnings = summarizeWalkForwardCostWarnings(walkForwardValidation, markets);
+  const costItem = costWarnings.length ? `
+    <div class="learning-item learning-item-audit learning-item-cost">
+      <strong>モデル別コスト点検</strong>
+      ${costWarnings.slice(0, 4).map((row) => `<span>${escapeMarkup(row.label)}: コスト後の試算 ${row.meanPct.toFixed(4)}% / ${row.samples}件<br><b class="${row.weight !== null && row.weight > 1 ? "cost-overweight" : ""}">合議重み ${row.weight === null ? "確認待ち" : `${row.weight.toFixed(2)}倍${row.blockedBoost ? "（増量抑制）" : row.weight > 1 ? "（1倍超）" : ""}`}</b></span>`).join("")}
+      <span>既存の後半集計は、結果の値幅がコスト以下の例や横ばいを除外しています。収益性の証明ではありません。</span>
+    </div>` : "";
   const backgroundItem = `
     <div class="learning-item learning-item-auto">
       <strong>サーバー自動学習 ${background.enabled ? "ON" : "OFF"}</strong>
@@ -5331,7 +5362,7 @@ function renderLearning(accuracy, markets, backgroundLearning, walkForwardValida
     </div>
   `;
 
-  learningGridEl.innerHTML = backgroundItem + items.map((market) => {
+  learningGridEl.innerHTML = backgroundItem + costItem + items.map((market) => {
     const stat = accuracy.byAsset?.[market.id];
     const hitRate = stat?.hitRate !== null && stat?.hitRate !== undefined ? `${(stat.hitRate * 100).toFixed(0)}%` : "--";
     const maeText = stat?.maePct !== null && stat?.maePct !== undefined ? `${stat.maePct.toFixed(3)}%` : "--";

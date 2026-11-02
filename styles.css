@@ -1565,6 +1565,31 @@ html {
   gap: 1px;
 }
 
+.cot-weekly-overview { padding: 14px; background: #0b1821; }
+.cot-weekly-overview-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.cot-weekly-overview-head strong { font-size: 16px; color: var(--text); }
+.cot-weekly-overview-head span, .cot-weekly-overview > p, .cot-weekly-market p { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.cot-weekly-overview > p { margin: 6px 0 10px; }
+.cot-weekly-market { min-width: 0; padding: 12px 0; border-top: 1px solid var(--line); }
+.cot-weekly-market-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.cot-weekly-market-head h4, .cot-weekly-market > h4 { margin: 0; color: var(--text); font-size: 14px; }
+.cot-weekly-market-head span { color: var(--muted); font-size: 11px; }
+.cot-weekly-market p { margin: 8px 0 0; }
+.cot-weekly-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; margin-top: 10px; }
+.cot-weekly-metrics > div { display: grid; align-content: start; min-width: 0; gap: 4px; }
+.cot-weekly-metrics span, .cot-weekly-metrics small, .cot-weekly-history-head, .cot-weekly-row time { color: var(--muted); font-size: 11px; }
+.cot-weekly-metrics strong { color: var(--text); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.cot-weekly-metrics small { line-height: 1.4; }
+.cot-weekly-history-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; margin: 14px 0 5px; }
+.cot-weekly-history { display: grid; gap: 4px; }
+.cot-weekly-row { display: grid; grid-template-columns: 48px minmax(65px, 1fr) minmax(140px, auto); gap: 8px; align-items: center; min-height: 20px; }
+.cot-weekly-row strong { color: var(--text); font-size: 11px; text-align: right; white-space: nowrap; }
+.cot-weekly-track { position: relative; height: 10px; background: #172b33; }
+.cot-weekly-track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: #a7b9b5; }
+.cot-weekly-bar { position: absolute; top: 0; bottom: 0; }
+.cot-weekly-bar.short { background: #f2777a; }
+.cot-weekly-bar.long { background: #57c6a8; }
+
 .cot-position-balance {
   padding: 12px;
   display: grid;
@@ -1597,6 +1622,11 @@ html {
 .cot-history-panel polyline { fill: none; stroke: #64d8b4; stroke-width: 2; vector-effect: non-scaling-stroke; }
 
 @media (max-width: 680px) {
+  #cot-panel { scroll-margin-top: 158px; }
+  .cot-weekly-overview { padding: 12px; }
+  .cot-weekly-metrics { grid-template-columns: 1fr 1fr; }
+  .cot-weekly-metrics > div:first-child { grid-column: 1 / -1; }
+  .cot-weekly-row { grid-template-columns: 40px minmax(48px, 1fr) minmax(132px, auto); gap: 6px; }
   .cot-position-balance { grid-template-columns: 1fr; gap: 10px; }
   .cot-net-value.short { text-align: left; }
   .cot-net-value strong { font-size: 20px; }

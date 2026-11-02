@@ -2299,6 +2299,94 @@ function renderEconomicCalendar(calendar) {
   `).join("");
 }
 
+function summarizeCotWeeklyPosition(cot, now = Date.now()) {
+  const numeric = (value) => value === null || value === undefined || (typeof value === "string" && !value.trim()) || typeof value === "boolean"
+    ? null : Number.isSafeInteger(Number(value)) ? Number(value) : null;
+  const day = (value) => {
+    const text = String(value || "").slice(0, 10);
+    const at = Date.parse(`${text}T00:00:00Z`);
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) && Number.isFinite(at) && new Date(at).toISOString().slice(0, 10) === text ? text : null;
+  };
+  const reportDay = day(cot?.reportDate);
+  const availableAt = cot?.availableFrom ? Date.parse(cot.availableFrom) : null;
+  if (!reportDay || Date.parse(`${reportDay}T00:00:00Z`) > now || (availableAt !== null && (!Number.isFinite(availableAt) || availableAt > now))) {
+    return { status: "unavailable", reason: "最新公表日の確認待ち" };
+  }
+  const byDay = new Map();
+  for (const row of Array.isArray(cot?.history) ? cot.history : []) {
+    const date = day(row?.date);
+    const net = numeric(row?.net);
+    const long = numeric(row?.long);
+    const short = numeric(row?.short);
+    const available = row?.availableFrom ? Date.parse(row.availableFrom) : null;
+    if (date === reportDay && available !== null && (!Number.isFinite(available) || available > now)) {
+      return { status: "unavailable", reason: "最新報告の公表確認待ち" };
+    }
+    if (!date || date > reportDay || net === null || (available !== null && (!Number.isFinite(available) || available > now))) continue;
+    if (long !== null && short !== null && long - short !== net) continue;
+    if (byDay.has(date) && byDay.get(date)?.net !== net) byDay.set(date, null);
+    else if (!byDay.has(date)) byDay.set(date, { date, net });
+  }
+  const rows = [...byDay.values()].filter(Boolean).sort((a, b) => a.date.localeCompare(b.date));
+  const recorded = rows.find((row) => row.date === reportDay);
+  const reportedNet = numeric(cot?.speculativeNet);
+  if ((byDay.has(reportDay) && !recorded) || (recorded && reportedNet !== null && recorded.net !== reportedNet)) {
+    return { status: "unavailable", reason: "最新値の記録が一致せず確認待ち" };
+  }
+  const current = recorded || (reportedNet === null ? null : { date: reportDay, net: reportedNet });
+  if (!current) return { status: "unavailable", reason: "最新の建玉枚数を確認できません" };
+  if (!recorded) rows.push(current);
+  const ordered = rows.sort((a, b) => a.date.localeCompare(b.date));
+  const previousRow = ordered.filter((row) => row.date < reportDay).at(-1);
+  const gapDays = previousRow ? (Date.parse(`${reportDay}T00:00:00Z`) - Date.parse(`${previousRow.date}T00:00:00Z`)) / 86_400_000 : null;
+  const previous = gapDays >= 5 && gapDays <= 9 ? previousRow : null;
+  const currentShort = Math.max(0, -current.net);
+  const previousShort = previous ? Math.max(0, -previous.net) : null;
+  const shortChange = previous ? currentShort - previousShort : null;
+  let changeLabel = "前週と比較できません";
+  if (previous) {
+    if (previous.net >= 0 && current.net < 0) changeLabel = "買い越しから売り越しに転換";
+    else if (previous.net < 0 && current.net > 0) changeLabel = "売り越しから買い越しに転換";
+    else if (previous.net < 0 && current.net === 0) changeLabel = "売り越しを解消";
+    else if (current.net >= 0) changeLabel = "現在は売り越しなし";
+    else changeLabel = shortChange > 0 ? "ネットショート増加" : shortChange < 0 ? "ネットショート減少" : "ネットショート横ばい";
+  }
+  const openInterest = numeric(cot?.openInterest);
+  return {
+    status: "ok", current, previous, shortChange, changeLabel,
+    shortChangePct: previousShort > 0 && currentShort > 0 ? shortChange / previousShort * 100 : null,
+    netOpenInterestPct: openInterest > 0 ? Math.abs(current.net) / openInterest * 100 : null,
+    rows: ordered.slice(-8)
+  };
+}
+
+function renderCotWeeklyPosition(cot, label, note = "") {
+  const summary = summarizeCotWeeklyPosition(cot);
+  const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+  if (summary.status !== "ok") return `<section class="cot-weekly-market"><h4>${escape(label)}</h4><p>${escape(summary.reason)}</p></section>`;
+  const number = (value) => Math.abs(value).toLocaleString("ja-JP");
+  const position = (net) => net < 0 ? `売り越し ${number(net)}枚` : net > 0 ? `買い越し ${number(net)}枚` : "買い・売り同数";
+  const date = (value) => value.replaceAll("-", "/");
+  const move = summary.shortChange === null ? "--" : summary.shortChange === 0 ? "0枚" : `${number(summary.shortChange)}枚${summary.shortChange > 0 ? "増加" : "減少"}`;
+  const percent = summary.shortChangePct === null ? "前週比率は算出しません" : `売り越し枚数の前週比 ${summary.shortChangePct > 0 ? "+" : ""}${summary.shortChangePct.toFixed(1)}%`;
+  const scale = Math.max(1, ...summary.rows.map((row) => Math.abs(row.net)));
+  return `<section class="cot-weekly-market">
+    <div class="cot-weekly-market-head"><h4>${escape(label)}</h4><span>建玉基準日 ${date(summary.current.date)}</span></div>
+    <div class="cot-weekly-metrics">
+      <div><span>最新のネット建玉</span><strong>${position(summary.current.net)}</strong><small>${summary.netOpenInterestPct === null ? "未決済建玉比は確認待ち" : `差の大きさは未決済建玉の ${summary.netOpenInterestPct.toFixed(1)}%`}</small></div>
+      <div><span>前週からの変化</span><strong>${escape(summary.changeLabel)}</strong><small>${move} / ${percent}</small></div>
+      <div><span>前週のネット建玉</span><strong>${summary.previous ? position(summary.previous.net) : "確認待ち"}</strong><small>${summary.previous ? `基準日 ${date(summary.previous.date)}` : "連続した週の記録がありません"}</small></div>
+    </div>
+    <div class="cot-weekly-history-head"><span>直近${summary.rows.length}週の推移</span><span>売り越し ← 0 → 買い越し</span></div>
+    <div class="cot-weekly-history">${[...summary.rows].reverse().map((row) => {
+      const width = Math.abs(row.net) / scale * 50;
+      const left = row.net < 0 ? 50 - width : 50;
+      return `<div class="cot-weekly-row"><time datetime="${row.date}">${row.date.slice(5).replace("-", "/")}</time><div class="cot-weekly-track" aria-hidden="true"><i class="cot-weekly-bar ${row.net < 0 ? "short" : "long"}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></i></div><strong>${position(row.net)}</strong></div>`;
+    }).join("")}</div>
+    ${note ? `<p>${escape(note)}</p>` : ""}
+  </section>`;
+}
+
 function renderCotAnalysis(cot) {
   if (!cotPanelEl || !cotStatusEl || !cotAnalysisEl) return;
   const tone = cot?.direction || "flat";
@@ -2338,6 +2426,12 @@ function renderCotAnalysis(cot) {
   }).join(" ");
   const zeroY = 92 - ((0 - historyMin) / historySpan) * 80;
   cotAnalysisEl.innerHTML = `
+    <div class="cot-weekly-overview">
+      <div class="cot-weekly-overview-head"><strong>ネット建玉の週次変化</strong><span>レバレッジド・ファンズ（大口の一分類）</span></div>
+      <p>買い建玉 − 売り建玉。CFTCの先物のみの週次報告で、通常は火曜日時点の建玉を金曜日に公表します。全ての大口取引や現在のポジションを示すものではありません。</p>
+      ${renderCotWeeklyPosition(cot, "ユーロ先物 / EUR/USD")}
+      ${renderCotWeeklyPosition(usdjpyCot, "円先物 / USD/JPY", "円先物の売り越しは円売りです。USD/JPYの売り越しではありません。")}
+    </div>
     <a class="cot-main ${tone}" href="${cot.url}" target="_blank" rel="noreferrer">
       <span>4時間・日足の短期投機筋方向</span>
       <strong>${cot.verdict}</strong>
